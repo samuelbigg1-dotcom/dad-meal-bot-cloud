@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/28000233/README.md)
 # Dad Meal Web App V1
 
 Mobile-first macro tracker web app for Railway + PostgreSQL + OpenAI.
