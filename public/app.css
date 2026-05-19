@@ -298,3 +298,19 @@ document.addEventListener("DOMContentLoaded", () => {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   margin: 1.25rem 0;
 }
+
+.hidden-file-input {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.file-picker-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  text-align: center;
+}
