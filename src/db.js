@@ -1,5 +1,6 @@
 import pg from "pg";
 import { DEFAULT_FOODS } from "./seedFoods.js";
+import { normalizeBarcodeFoodServing } from "./utils.js";
 
 const { Pool } = pg;
 
@@ -135,6 +136,16 @@ export async function getRecommendationFoods() {
 }
 
 export async function addFood(food) {
+  const { food: normalizedFood } = normalizeBarcodeFoodServing({
+    ...food,
+    baseUnit: food.base_unit || food.baseUnit,
+    protein: food.protein_g ?? food.protein,
+    carbs: food.carbs_g ?? food.carbs,
+    fat: food.fat_g ?? food.fat,
+    sugar: food.sugar_g ?? food.sugar,
+    fiber: food.fiber_g ?? food.fiber
+  });
+
   const result = await query(`
     INSERT INTO foods
       (name, aliases, base_qty, base_unit, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, category, is_pantry, include_in_recommendations)
@@ -156,19 +167,19 @@ export async function addFood(food) {
       include_in_recommendations = EXCLUDED.include_in_recommendations
     RETURNING *;
   `, [
-    food.name,
-    food.aliases || [],
-    Number(food.base_qty),
-    food.base_unit,
-    Number(food.calories),
-    Number(food.protein_g),
-    Number(food.carbs_g),
-    Number(food.fat_g),
-    Number(food.sugar_g),
-    Number(food.fiber_g),
-    food.category || "",
-    food.is_pantry ?? true,
-    food.include_in_recommendations ?? true
+    normalizedFood.name,
+    normalizedFood.aliases || [],
+    Number(normalizedFood.base_qty ?? normalizedFood.baseQty),
+    normalizedFood.base_unit || normalizedFood.baseUnit,
+    Number(normalizedFood.calories),
+    Number(normalizedFood.protein_g ?? normalizedFood.protein),
+    Number(normalizedFood.carbs_g ?? normalizedFood.carbs),
+    Number(normalizedFood.fat_g ?? normalizedFood.fat),
+    Number(normalizedFood.sugar_g ?? normalizedFood.sugar),
+    Number(normalizedFood.fiber_g ?? normalizedFood.fiber),
+    normalizedFood.category || "",
+    normalizedFood.is_pantry ?? true,
+    normalizedFood.include_in_recommendations ?? true
   ]);
 
   return result.rows[0];
