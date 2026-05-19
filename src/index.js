@@ -552,6 +552,57 @@ app.post("/foods/label-scan", requireAuth, async (req, res) => {
   }
 });
 
+app.post("/foods/confirm-scanned-label", requireAuth, async (req, res) => {
+  const user = await currentUser();
+  const food = b64JsonDecode(req.body.food);
+  const encoded = b64JsonEncode(food);
+
+  res.send(layout({
+    title: "Confirm scanned food",
+    active: "foods",
+    user,
+    body: `
+      <section class="card hero">
+        <h2>Confirm scanned food</h2>
+        <p>Name it clearly before saving. Example: Milk 4L, Fairlife Chocolate Milk, Greek Yogurt, etc.</p>
+      </section>
+
+      <section class="card">
+        <form id="confirm-package-form" method="post" action="/foods/confirm-package" class="stack">
+          <input type="hidden" name="food" value="${encoded}" />
+
+          <label class="field-label">Food name</label>
+          <input
+            class="input wide"
+            name="customName"
+            value="${escapeHtml(food.name || "Scanned packaged food")}"
+            placeholder="Example: Milk 4L"
+            required
+          />
+
+          <p>${escapeHtml(food.baseQty || 1)} ${escapeHtml(food.baseUnit || "serving")}</p>
+
+          <div class="pill-row">
+            <span class="pill">${round0(food.calories || 0)} cal</span>
+            <span class="pill">P ${round1(food.protein || 0)}g</span>
+            <span class="pill">C ${round1(food.carbs || 0)}g</span>
+            <span class="pill">F ${round1(food.fat || 0)}g</span>
+            <span class="pill">Sug ${round1(food.sugar || 0)}g</span>
+            <span class="pill">Fib ${round1(food.fiber || 0)}g</span>
+          </div>
+
+          <p class="muted">Scanned foods are saved as available, but not used in recommendations unless you turn that on later.</p>
+
+          <div class="action-row">
+            <button class="button primary" type="submit">Save to fridge</button>
+            <a class="button secondary" href="/foods">Cancel</a>
+          </div>
+        </form>
+      </section>
+    `
+  }));
+});
+
 app.post("/foods/confirm-package", requireAuth, async (req, res) => {
   const food = b64JsonDecode(req.body.food);
 
