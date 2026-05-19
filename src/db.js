@@ -184,7 +184,28 @@ export async function updateFoodFlags(id, { isPantry, includeInRecommendations }
 }
 
 export async function deleteFood(id) {
-  await query(`DELETE FROM foods WHERE id = $1`, [id]);
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Foods can be referenced by old meal_items through matched_food_id.
+    // Keep the logged meal history, but detach it from the food before deleting
+    // so Postgres does not reject the delete with a foreign-key error.
+    await client.query(`
+      UPDATE meal_items
+      SET matched_food_id = NULL
+      WHERE matched_food_id = $1;
+    `, [id]);
+
+    await client.query(`DELETE FROM foods WHERE id = $1`, [id]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function insertMealWithClient(client, { userId, mealDate, mealType, rawMessage, totals, items, editedFromMealId = null }) {
