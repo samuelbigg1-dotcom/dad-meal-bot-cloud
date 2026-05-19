@@ -159,6 +159,93 @@ function encodeFoodPayload(food) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(food))));
 }
 
+function decodeFoodPayload(payload) {
+  return JSON.parse(decodeURIComponent(escape(atob(payload))));
+}
+
+function parseServingGrams(baseUnit) {
+  const text = String(baseUnit || "").toLowerCase();
+  const match = text.match(/(\d+(?:\.\d+)?)\s*g\b/);
+  if (!match) return null;
+
+  const grams = Number(match[1]);
+  return Number.isFinite(grams) && grams > 0 ? grams : null;
+}
+
+function roundedMacro(value) {
+  const num = Number(value || 0);
+  return Math.round(num * 10) / 10;
+}
+
+function maybeScaleBarcodeFoodServing(food) {
+  const servingGrams = parseServingGrams(food.baseUnit);
+  if (!servingGrams || servingGrams >= 100) return { food, scaled: false };
+
+  const calories = Number(food.calories || 0);
+  const protein = Number(food.protein || 0);
+  const carbs = Number(food.carbs || 0);
+  const fat = Number(food.fat || 0);
+  const sugar = Number(food.sugar || 0);
+  const fiber = Number(food.fiber || 0);
+
+  // OpenFoodFacts sometimes returns only *_100g values. The old backend then
+  // treated those as one serving. Detect impossible serving math and scale from
+  // per-100g to the package serving size, e.g. 556 cal/100g -> 250 cal/45g.
+  const impossibleCalories = calories > servingGrams * 9 + 20;
+  const impossibleMacroWeight = protein + carbs + fat + sugar + fiber > servingGrams * 1.35;
+
+  if (!impossibleCalories && !impossibleMacroWeight) return { food, scaled: false };
+
+  const factor = servingGrams / 100;
+  return {
+    food: {
+      ...food,
+      calories: roundedMacro(calories * factor),
+      protein: roundedMacro(protein * factor),
+      carbs: roundedMacro(carbs * factor),
+      fat: roundedMacro(fat * factor),
+      sugar: roundedMacro(sugar * factor),
+      fiber: roundedMacro(fiber * factor)
+    },
+    scaled: true
+  };
+}
+
+function fixConfirmPackagedFoodIfNeeded() {
+  const form = document.getElementById("confirm-package-form");
+  if (!form) return;
+
+  const hiddenFoodInput = form.querySelector("input[name='food']");
+  if (!hiddenFoodInput || !hiddenFoodInput.value) return;
+
+  try {
+    const originalFood = decodeFoodPayload(hiddenFoodInput.value);
+    const { food, scaled } = maybeScaleBarcodeFoodServing(originalFood);
+    if (!scaled) return;
+
+    hiddenFoodInput.value = encodeFoodPayload(food);
+
+    const servingLine = form.querySelector("p");
+    if (servingLine) {
+      servingLine.textContent = `${food.baseQty || 1} ${food.baseUnit || "serving"} — corrected from barcode per-100g data`;
+    }
+
+    const pillRow = form.querySelector(".pill-row");
+    if (pillRow) {
+      pillRow.innerHTML = `
+        <span class="pill">${Math.round(Number(food.calories || 0))} cal</span>
+        <span class="pill">P ${roundedMacro(food.protein)}g</span>
+        <span class="pill">C ${roundedMacro(food.carbs)}g</span>
+        <span class="pill">F ${roundedMacro(food.fat)}g</span>
+        <span class="pill">Sug ${roundedMacro(food.sugar)}g</span>
+        <span class="pill">Fib ${roundedMacro(food.fiber)}g</span>
+      `;
+    }
+  } catch (error) {
+    // If the hidden payload is not the expected format, leave the page alone.
+  }
+}
+
 async function handleLabelScan(event) {
   event.preventDefault();
 
@@ -270,6 +357,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const barcodeImageInput = document.getElementById("barcodeImageInput");
   const labelScanButton = labelForm ? labelForm.querySelector("button[type='submit']") : null;
   const barcodeImageScanButton = barcodeImageForm ? barcodeImageForm.querySelector("button[type='submit']") : null;
+
+  fixConfirmPackagedFoodIfNeeded();
 
   if (startBtn) startBtn.addEventListener("click", startBarcodeScanner);
   if (stopBtn) stopBtn.addEventListener("click", stopBarcodeScanner);
