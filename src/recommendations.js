@@ -188,16 +188,37 @@ export function generateRecommendations({ totals, goals, foods, count = 5 }) {
   }
 
   const unique = [];
-  const seen = new Set();
-  for (const candidate of candidates.sort((a, b) => b.score - a.score)) {
-    const key = candidate.items.map((i) => `${i.food_name}:${i.quantity}:${i.unit}`).join("|");
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(candidate);
-    if (unique.length >= count) break;
-  }
+const seenExact = new Set();
+const seenIngredientCombos = new Set();
 
-  return unique;
+for (const candidate of candidates.sort((a, b) => b.score - a.score)) {
+  // Exact duplicate check: same foods, quantities, and units.
+  const exactKey = candidate.items
+    .map((i) => `${String(i.food_name).toLowerCase()}:${i.quantity}:${i.unit}`)
+    .sort()
+    .join("|");
+
+  // Meal-style duplicate check: same ingredients, even if quantities differ.
+  // This prevents:
+  // chicken + potato + broccoli
+  // chicken + potato + broccoli
+  // showing twice with slightly different portions.
+  const ingredientComboKey = candidate.items
+    .map((i) => String(i.food_name).toLowerCase().trim())
+    .sort()
+    .join("|");
+
+  if (seenExact.has(exactKey)) continue;
+  if (seenIngredientCombos.has(ingredientComboKey)) continue;
+
+  seenExact.add(exactKey);
+  seenIngredientCombos.add(ingredientComboKey);
+
+  unique.push(candidate);
+  if (unique.length >= count) break;
+}
+
+return unique;
 }
 
 export function macroStatus(totals, goals) {
