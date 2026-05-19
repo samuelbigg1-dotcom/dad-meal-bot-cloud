@@ -1,11 +1,6 @@
 let barcodeStream = null;
 let barcodeScanTimer = null;
 
-function setText(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
-}
-
 function show(el, display = "block") {
   if (el) el.style.display = display;
 }
@@ -23,16 +18,13 @@ async function startBarcodeScanner() {
   const stopBtn = document.getElementById("stopBarcodeScanner");
   const form = document.getElementById("barcodeLookupForm");
 
-  if (!video || !box || !status || !input || !form) {
-    return;
-  }
+  if (!video || !box || !status || !input || !form) return;
 
   show(box);
   status.textContent = "Starting camera...";
 
   if (!("BarcodeDetector" in window)) {
-    status.textContent =
-      "This browser does not support camera barcode scanning. Type the barcode number manually instead.";
+    status.textContent = "This browser does not support live barcode scanning. Use barcode photo scan or type the barcode manually.";
     return;
   }
 
@@ -56,7 +48,6 @@ async function startBarcodeScanner() {
     barcodeScanTimer = setInterval(async () => {
       try {
         const codes = await detector.detect(video);
-
         if (codes.length > 0) {
           const code = codes[0].rawValue;
           input.value = code;
@@ -85,9 +76,7 @@ function stopBarcodeScanner() {
   }
 
   if (barcodeStream) {
-    for (const track of barcodeStream.getTracks()) {
-      track.stop();
-    }
+    for (const track of barcodeStream.getTracks()) track.stop();
     barcodeStream = null;
   }
 
@@ -112,7 +101,6 @@ function fileToImage(file) {
 
 async function fileToCompressedDataUrl(file) {
   const img = await fileToImage(file);
-
   const maxSide = 1400;
   let { width, height } = img;
 
@@ -147,7 +135,6 @@ async function handleLabelScan(event) {
   if (!input || !status) return;
 
   const file = input.files && input.files[0];
-
   if (!file) {
     status.textContent = "Choose a Nutrition Facts label photo first.";
     return;
@@ -157,41 +144,32 @@ async function handleLabelScan(event) {
 
   try {
     const imageDataUrl = await fileToCompressedDataUrl(file);
-
     status.textContent = "Reading Nutrition Facts label...";
 
     const response = await fetch("/foods/label-scan", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageDataUrl })
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Could not scan label.");
-    }
-
-    if (!data.food) {
-      throw new Error("No food data returned from label scan.");
-    }
+    if (!response.ok) throw new Error(data.error || "Could not scan label.");
+    if (!data.food) throw new Error("No food data returned from label scan.");
 
     status.textContent = "Label read. Opening confirmation...";
 
-const form = document.createElement("form");
-form.method = "POST";
-form.action = "/foods/confirm-scanned-label";
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/foods/confirm-scanned-label";
 
-const foodInput = document.createElement("input");
-foodInput.type = "hidden";
-foodInput.name = "food";
-foodInput.value = encodeFoodPayload(data.food);
+    const foodInput = document.createElement("input");
+    foodInput.type = "hidden";
+    foodInput.name = "food";
+    foodInput.value = encodeFoodPayload(data.food);
 
-form.appendChild(foodInput);
-document.body.appendChild(form);
-form.submit();
+    form.appendChild(foodInput);
+    document.body.appendChild(form);
+    form.submit();
   } catch (error) {
     status.textContent = `Label scan failed: ${error.message}`;
   }
@@ -206,7 +184,6 @@ async function handleBarcodeImageScan(event) {
   if (!input || !status) return;
 
   const file = input.files && input.files[0];
-
   if (!file) {
     status.textContent = "Choose a barcode photo first.";
     return;
@@ -216,28 +193,19 @@ async function handleBarcodeImageScan(event) {
 
   try {
     const imageDataUrl = await fileToCompressedDataUrl(file);
-
     status.textContent = "Reading barcode...";
 
     const response = await fetch("/foods/barcode-image-scan", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageDataUrl })
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Could not scan barcode.");
-    }
+    if (!response.ok) throw new Error(data.error || "Could not scan barcode.");
 
     const barcode = String(data.barcode || "").replace(/\D/g, "");
-
-    if (!barcode) {
-      throw new Error("No barcode number found.");
-    }
+    if (!barcode) throw new Error("No barcode number found.");
 
     status.textContent = `Found barcode ${barcode}. Looking up product...`;
 
@@ -266,36 +234,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const labelImageInput = document.getElementById("labelImageInput");
   const barcodeImageInput = document.getElementById("barcodeImageInput");
 
-  if (startBtn) {
-    startBtn.addEventListener("click", startBarcodeScanner);
-  }
+  if (startBtn) startBtn.addEventListener("click", startBarcodeScanner);
+  if (stopBtn) stopBtn.addEventListener("click", stopBarcodeScanner);
+  if (labelForm) labelForm.addEventListener("submit", handleLabelScan);
+  if (barcodeImageForm) barcodeImageForm.addEventListener("submit", handleBarcodeImageScan);
 
-  if (stopBtn) {
-    stopBtn.addEventListener("click", stopBarcodeScanner);
-  }
-
-  if (labelForm) {
-    labelForm.addEventListener("submit", handleLabelScan);
-  }
-
-  if (barcodeImageForm) {
-    barcodeImageForm.addEventListener("submit", handleBarcodeImageScan);
-  }
-
-  // Phone-friendly: as soon as a photo/file is selected, start scanning.
   if (labelImageInput && labelForm) {
     labelImageInput.addEventListener("change", () => {
-      if (labelImageInput.files && labelImageInput.files[0]) {
-        labelForm.requestSubmit();
-      }
+      if (labelImageInput.files && labelImageInput.files[0]) labelForm.requestSubmit();
     });
   }
 
   if (barcodeImageInput && barcodeImageForm) {
     barcodeImageInput.addEventListener("change", () => {
-      if (barcodeImageInput.files && barcodeImageInput.files[0]) {
-        barcodeImageForm.requestSubmit();
-      }
+      if (barcodeImageInput.files && barcodeImageInput.files[0]) barcodeImageForm.requestSubmit();
     });
   }
 });
