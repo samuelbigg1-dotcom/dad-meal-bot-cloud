@@ -17,9 +17,12 @@ export function canonicalUnit(unit) {
     "egg": "egg", "eggs": "egg",
     "medium": "medium", "med": "medium",
     "serving": "serving", "servings": "serving",
+    "package": "package", "packages": "package", "packet": "package", "packets": "package",
+    "bag": "bag", "bags": "bag",
     "oz": "oz", "ounce": "oz", "ounces": "oz",
     "g": "g", "gram": "g", "grams": "g",
-    "slice": "slice", "slices": "slice"
+    "slice": "slice", "slices": "slice",
+    "muffin": "muffin", "muffins": "muffin"
   };
   return map[u] || u;
 }
@@ -87,4 +90,52 @@ export function macroGoalsFromUser(user) {
 
 export function emptyTotals() {
   return { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, fiber_g: 0 };
+}
+
+export function parseServingGrams(baseUnit) {
+  const text = String(baseUnit || "").toLowerCase();
+  const match = text.match(/(\d+(?:\.\d+)?)\s*g\b/);
+  if (!match) return null;
+
+  const grams = Number(match[1]);
+  return Number.isFinite(grams) && grams > 0 ? grams : null;
+}
+
+export function normalizeBarcodeFoodServing(food) {
+  const servingGrams = parseServingGrams(food?.baseUnit || food?.base_unit);
+  if (!servingGrams || servingGrams >= 100) return { food, scaled: false };
+
+  const calories = Number(food.calories || 0);
+  const protein = Number(food.protein ?? food.protein_g ?? 0);
+  const carbs = Number(food.carbs ?? food.carbs_g ?? 0);
+  const fat = Number(food.fat ?? food.fat_g ?? 0);
+  const sugar = Number(food.sugar ?? food.sugar_g ?? 0);
+  const fiber = Number(food.fiber ?? food.fiber_g ?? 0);
+
+  // If OpenFoodFacts gives only *_100g values, treating them as one serving can
+  // produce impossible results. Example: 556 calories saved as a 45 g popcorn
+  // serving. A real 45 g serving cannot exceed about 405 calories from macros.
+  const impossibleCalories = calories > servingGrams * 9 + 20;
+  const impossibleMacroWeight = protein + carbs + fat + sugar + fiber > servingGrams * 1.35;
+
+  if (!impossibleCalories && !impossibleMacroWeight) return { food, scaled: false };
+
+  const factor = servingGrams / 100;
+  const scaledFood = {
+    ...food,
+    calories: round1(calories * factor),
+    protein: round1(protein * factor),
+    carbs: round1(carbs * factor),
+    fat: round1(fat * factor),
+    sugar: round1(sugar * factor),
+    fiber: round1(fiber * factor)
+  };
+
+  if ("protein_g" in scaledFood) scaledFood.protein_g = scaledFood.protein;
+  if ("carbs_g" in scaledFood) scaledFood.carbs_g = scaledFood.carbs;
+  if ("fat_g" in scaledFood) scaledFood.fat_g = scaledFood.fat;
+  if ("sugar_g" in scaledFood) scaledFood.sugar_g = scaledFood.sugar;
+  if ("fiber_g" in scaledFood) scaledFood.fiber_g = scaledFood.fiber;
+
+  return { food: scaledFood, scaled: true };
 }
