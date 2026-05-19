@@ -84,6 +84,39 @@ function stopBarcodeScanner() {
   hide(stopBtn);
 }
 
+function resetFileInput(input) {
+  if (!input) return;
+  try {
+    input.value = "";
+  } catch (error) {
+    // Some mobile browsers are weird about file inputs. Replacing the node
+    // is overkill here because clearing the value is enough in normal cases.
+  }
+}
+
+function openFilePicker(input, status, message = "Opening camera/photo picker...") {
+  if (!input) return;
+  if (status) status.textContent = message;
+
+  // Important on mobile: clear the previous selection before opening the picker.
+  // Otherwise Chrome/Safari can treat the same camera/input as already used and
+  // the second tap may not fire a change event.
+  resetFileInput(input);
+  input.click();
+}
+
+function submitScanForm(form) {
+  if (!form) return;
+
+  if (typeof form.requestSubmit === "function") {
+    form.requestSubmit();
+    return;
+  }
+
+  const event = new Event("submit", { bubbles: true, cancelable: true });
+  form.dispatchEvent(event);
+}
+
 function fileToImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -136,7 +169,7 @@ async function handleLabelScan(event) {
 
   const file = input.files && input.files[0];
   if (!file) {
-    status.textContent = "Choose a Nutrition Facts label photo first.";
+    openFilePicker(input, status, "Choose or take a Nutrition Facts label photo...");
     return;
   }
 
@@ -171,6 +204,7 @@ async function handleLabelScan(event) {
     document.body.appendChild(form);
     form.submit();
   } catch (error) {
+    resetFileInput(input);
     status.textContent = `Label scan failed: ${error.message}`;
   }
 }
@@ -185,7 +219,7 @@ async function handleBarcodeImageScan(event) {
 
   const file = input.files && input.files[0];
   if (!file) {
-    status.textContent = "Choose a barcode photo first.";
+    openFilePicker(input, status, "Choose or take a clear barcode photo...");
     return;
   }
 
@@ -222,6 +256,7 @@ async function handleBarcodeImageScan(event) {
     document.body.appendChild(form);
     form.submit();
   } catch (error) {
+    resetFileInput(input);
     status.textContent = `Barcode scan failed: ${error.message}`;
   }
 }
@@ -233,21 +268,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const barcodeImageForm = document.getElementById("barcodeImageScanForm");
   const labelImageInput = document.getElementById("labelImageInput");
   const barcodeImageInput = document.getElementById("barcodeImageInput");
+  const labelScanButton = labelForm ? labelForm.querySelector("button[type='submit']") : null;
+  const barcodeImageScanButton = barcodeImageForm ? barcodeImageForm.querySelector("button[type='submit']") : null;
 
   if (startBtn) startBtn.addEventListener("click", startBarcodeScanner);
   if (stopBtn) stopBtn.addEventListener("click", stopBarcodeScanner);
   if (labelForm) labelForm.addEventListener("submit", handleLabelScan);
   if (barcodeImageForm) barcodeImageForm.addEventListener("submit", handleBarcodeImageScan);
 
+  if (labelScanButton && labelImageInput) {
+    labelScanButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      const status = document.getElementById("labelScanStatus");
+      openFilePicker(labelImageInput, status, "Choose or take a Nutrition Facts label photo...");
+    });
+  }
+
+  if (barcodeImageScanButton && barcodeImageInput) {
+    barcodeImageScanButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      const status = document.getElementById("barcodeImageScanStatus");
+      openFilePicker(barcodeImageInput, status, "Choose or take a clear barcode photo...");
+    });
+  }
+
   if (labelImageInput && labelForm) {
+    labelImageInput.addEventListener("click", () => resetFileInput(labelImageInput));
     labelImageInput.addEventListener("change", () => {
-      if (labelImageInput.files && labelImageInput.files[0]) labelForm.requestSubmit();
+      if (labelImageInput.files && labelImageInput.files[0]) submitScanForm(labelForm);
     });
   }
 
   if (barcodeImageInput && barcodeImageForm) {
+    barcodeImageInput.addEventListener("click", () => resetFileInput(barcodeImageInput));
     barcodeImageInput.addEventListener("change", () => {
-      if (barcodeImageInput.files && barcodeImageInput.files[0]) barcodeImageForm.requestSubmit();
+      if (barcodeImageInput.files && barcodeImageInput.files[0]) submitScanForm(barcodeImageForm);
     });
   }
 });
