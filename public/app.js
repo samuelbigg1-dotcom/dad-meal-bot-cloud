@@ -177,6 +177,20 @@ function roundedMacro(value) {
   return Math.round(num * 10) / 10;
 }
 
+function numericInput(name, label, value, step = "0.1") {
+  return `
+    <label>${label}
+      <input class="input" name="${name}" type="number" step="${step}" value="${roundedMacro(value)}" required />
+    </label>`;
+}
+
+function textInput(name, label, value, placeholder = "") {
+  return `
+    <label>${label}
+      <input class="input" name="${name}" value="${String(value || "").replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}" placeholder="${placeholder}" required />
+    </label>`;
+}
+
 function maybeScaleBarcodeFoodServing(food) {
   const servingGrams = parseServingGrams(food.baseUnit);
   if (!servingGrams || servingGrams >= 100) return { food, scaled: false };
@@ -239,6 +253,54 @@ function addBarcodeServingNote(form, food, scaled) {
   else form.appendChild(note);
 }
 
+function addEditableConfirmationFields(form, food) {
+  if (document.getElementById("editableNutritionFields")) return;
+
+  const fields = document.createElement("div");
+  fields.id = "editableNutritionFields";
+  fields.className = "grid-form";
+  fields.innerHTML = `
+    ${numericInput("baseQty", "Serving quantity", food.baseQty || 1, "0.001")}
+    ${textInput("baseUnit", "Serving unit", food.baseUnit || "serving", "45 g / cup / serving")}
+    ${numericInput("calories", "Calories", food.calories || 0)}
+    ${numericInput("protein", "Protein g", food.protein || 0)}
+    ${numericInput("carbs", "Carbs g", food.carbs || 0)}
+    ${numericInput("fat", "Fat g", food.fat || 0)}
+    ${numericInput("sugar", "Sugar g", food.sugar || 0)}
+    ${numericInput("fiber", "Fiber g", food.fiber || 0)}
+  `;
+
+  const pillRow = form.querySelector(".pill-row");
+  if (pillRow) pillRow.insertAdjacentElement("beforebegin", fields);
+  else form.appendChild(fields);
+
+  form.addEventListener("submit", () => {
+    const hiddenFoodInput = form.querySelector("input[name='food']");
+    if (!hiddenFoodInput) return;
+
+    let current = {};
+    try {
+      current = decodeFoodPayload(hiddenFoodInput.value);
+    } catch (error) {
+      current = {};
+    }
+
+    const updated = {
+      ...current,
+      baseQty: Number(form.querySelector("input[name='baseQty']")?.value || 1),
+      baseUnit: form.querySelector("input[name='baseUnit']")?.value || "serving",
+      calories: Number(form.querySelector("input[name='calories']")?.value || 0),
+      protein: Number(form.querySelector("input[name='protein']")?.value || 0),
+      carbs: Number(form.querySelector("input[name='carbs']")?.value || 0),
+      fat: Number(form.querySelector("input[name='fat']")?.value || 0),
+      sugar: Number(form.querySelector("input[name='sugar']")?.value || 0),
+      fiber: Number(form.querySelector("input[name='fiber']")?.value || 0)
+    };
+
+    hiddenFoodInput.value = encodeFoodPayload(updated);
+  });
+}
+
 function fixConfirmPackagedFoodIfNeeded() {
   const form = document.getElementById("confirm-package-form");
   if (!form) return;
@@ -260,10 +322,41 @@ function fixConfirmPackagedFoodIfNeeded() {
     }
 
     renderMacroPills(form.querySelector(".pill-row"), food);
+    addEditableConfirmationFields(form, food);
     addBarcodeServingNote(form, food, scaled);
   } catch (error) {
     // If the hidden payload is not the expected format, leave the page alone.
   }
+}
+
+function collapseManualFoodForm() {
+  const cards = [...document.querySelectorAll("section.card")];
+  const manualCard = cards.find((card) => card.querySelector("h2")?.textContent?.includes("Add food manually"));
+  if (!manualCard) return;
+
+  const form = manualCard.querySelector("form");
+  if (!form || document.getElementById("toggleManualFoodForm")) return;
+
+  form.style.display = "none";
+
+  const button = document.createElement("button");
+  button.id = "toggleManualFoodForm";
+  button.className = "button wide";
+  button.type = "button";
+  button.textContent = "+ Add food manually";
+
+  const note = document.createElement("p");
+  note.className = "muted";
+  note.textContent = "Usually you will scan a barcode or Nutrition Facts label instead.";
+
+  manualCard.insertBefore(button, form);
+  manualCard.insertBefore(note, form);
+
+  button.addEventListener("click", () => {
+    const isHidden = form.style.display === "none";
+    form.style.display = isHidden ? "grid" : "none";
+    button.textContent = isHidden ? "Hide manual add" : "+ Add food manually";
+  });
 }
 
 async function handleLabelScan(event) {
@@ -379,6 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const barcodeImageScanButton = barcodeImageForm ? barcodeImageForm.querySelector("button[type='submit']") : null;
 
   fixConfirmPackagedFoodIfNeeded();
+  collapseManualFoodForm();
 
   if (startBtn) startBtn.addEventListener("click", startBarcodeScanner);
   if (stopBtn) stopBtn.addEventListener("click", stopBarcodeScanner);
