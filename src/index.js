@@ -344,7 +344,7 @@ app.get("/foods", requireAuth, async (req, res) => {
             </div>
             <div class="food-actions">
               <form method="post" action="/foods/${food.id}/toggle-pantry">
-                <button class="chip ${food.is_pantry ? "on" : ""}" type="submit">${food.is_pantry ? "Available at home" : "Not available"}</button>
+                <button class="chip ${food.is_pantry ? "on" : ""}" type="submit">${food.is_pantry ? "Available at home" : "Add to fridge"}</button>
               </form>
               <form method="post" action="/foods/${food.id}/toggle-recommend">
                 <button class="chip ${food.include_in_recommendations ? "on" : ""}" type="submit">${food.include_in_recommendations ? "Use in recommendations" : "Don’t recommend"}</button>
