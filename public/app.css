@@ -83,3 +83,20 @@ p { color: var(--muted); line-height: 1.45; }
 .segmented span { display:flex; align-items:center; justify-content:center; min-height:44px; padding: 9px 8px; border-radius: 14px; border:1px solid var(--line); background: rgba(255,255,255,.04); color: var(--muted); font-size: 13px; font-weight: 850; text-align:center; }
 .segmented input:checked + span { color:#06121d; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-color: transparent; }
 @media (max-width: 640px) { .segmented { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+.chip.off {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fecaca;
+}
+
+.chip.off:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.65);
+}
+
+.chip.on {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #bbf7d0;
+}
