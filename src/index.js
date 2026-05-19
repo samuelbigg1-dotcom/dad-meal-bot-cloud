@@ -24,7 +24,7 @@ import {
   updateFoodFlags,
   upsertUser
 } from "./db.js";
-import { parseMealWithAI, explainRecommendationsWithAI } from "./ai.js";
+import { parseMealWithAI, explainRecommendationsWithAI, scanNutritionLabelWithAI } from "./ai.js";
 import { calculateItems, totalItems } from "./nutrition.js";
 import { generateRecommendations, remainingMacros } from "./recommendations.js";
 import { addDays, b64JsonDecode, b64JsonEncode, csvEscape, escapeHtml, macroGoalsFromUser, round0, round1, todayInTimezone } from "./utils.js";
@@ -37,8 +37,8 @@ const USER_ID = process.env.APP_USER_ID || process.env.ALLOWED_TELEGRAM_USER_ID 
 const WEB_PIN = process.env.WEB_PIN || "";
 const COOKIE_SECRET = process.env.COOKIE_SECRET || WEB_PIN || "dev-secret-change-me";
 
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "12mb" }));
+app.use(express.json({ limit: "50mb" }));
 app.use("/public", express.static("public", { maxAge: "1h" }));
 
 function sign(value) {
@@ -338,12 +338,32 @@ app.get("/foods", requireAuth, async (req, res) => {
         <h2>Add packaged food</h2>
         <p>Type the barcode number from the package, then confirm before saving.</p>
 
-        <form method="post" action="/foods/barcode" class="grid-form">
-          <input class="input wide" name="barcode" placeholder="Barcode / UPC number" required />
+               <form method="post" action="/foods/barcode" class="grid-form" id="barcodeLookupForm">
+          <input class="input wide" id="barcodeInput" name="barcode" placeholder="Barcode / UPC number" required />
           <button class="button primary wide" type="submit">Look up barcode</button>
         </form>
 
-        <p class="muted">Photo label scan can be added next.</p>
+        <div class="action-row">
+          <button class="button" type="button" id="startBarcodeScanner">Scan barcode with camera</button>
+          <button class="button secondary" type="button" id="stopBarcodeScanner" style="display:none;">Stop camera</button>
+        </div>
+
+        <div id="barcodeScannerBox" class="scanner-box" style="display:none;">
+          <video id="barcodeVideo" playsinline muted></video>
+          <p class="muted" id="barcodeScannerStatus">Point camera at barcode.</p>
+        </div>
+
+        <hr class="soft-divider" />
+
+        <h3>Scan Nutrition Facts label</h3>
+        <p class="muted">Take or upload a clear photo of the nutrition label.</p>
+
+        <form id="labelScanForm" class="grid-form">
+          <input class="input wide" id="labelImageInput" type="file" accept="image/*" capture="environment" required />
+          <button class="button primary wide" type="submit">Scan nutrition label</button>
+        </form>
+
+        <p class="muted" id="labelScanStatus"></p>
       </section>
 
       <section class="card">
@@ -497,6 +517,38 @@ app.post("/foods/barcode", requireAuth, async (req, res) => {
         </section>
       `
     }));
+  }
+});
+
+app.post("/foods/label-scan", requireAuth, async (req, res) => {
+  const imageDataUrl = String(req.body.imageDataUrl || "");
+
+  if (!imageDataUrl.startsWith("data:image/")) {
+    res.status(400).json({ error: "Missing image. Upload a photo of the Nutrition Facts label." });
+    return;
+  }
+
+  try {
+    const food = await scanNutritionLabelWithAI(imageDataUrl);
+
+    const safeFood = {
+      name: food.name || "Scanned packaged food",
+      baseQty: Number(food.baseQty || 1),
+      baseUnit: food.baseUnit || "serving",
+      calories: Number(food.calories || 0),
+      protein: Number(food.protein || 0),
+      carbs: Number(food.carbs || 0),
+      fat: Number(food.fat || 0),
+      sugar: Number(food.sugar || 0),
+      fiber: Number(food.fiber || 0),
+      category: "packaged",
+      aliases: ""
+    };
+
+    res.json({ food: safeFood });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message || "Could not scan nutrition label." });
   }
 });
 
