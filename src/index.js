@@ -334,6 +334,18 @@ app.get("/foods", requireAuth, async (req, res) => {
         </form>
       </section>
 
+            <section class="card">
+        <h2>Add packaged food</h2>
+        <p>Type the barcode number from the package, then confirm before saving.</p>
+
+        <form method="post" action="/foods/barcode" class="grid-form">
+          <input class="input wide" name="barcode" placeholder="Barcode / UPC number" required />
+          <button class="button primary wide" type="submit">Look up barcode</button>
+        </form>
+
+        <p class="muted">Photo label scan can be added next.</p>
+      </section>
+
       <section class="card">
         <h2>Saved foods</h2>
         <div class="food-list">
@@ -377,6 +389,125 @@ app.post("/foods", requireAuth, async (req, res) => {
     is_pantry: true,
     include_in_recommendations: true
   });
+  res.redirect("/foods");
+});
+
+app.post("/foods/barcode", requireAuth, async (req, res) => {
+  const user = await currentUser();
+  const barcode = String(req.body.barcode || "").replace(/\D/g, "");
+
+  if (!barcode) {
+    res.redirect("/foods");
+    return;
+  }
+
+  try {
+    const url = `https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,serving_size,nutriments,categories_tags`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!data || data.status !== 1 || !data.product) {
+      res.send(layout({
+        title: "Barcode not found",
+        active: "foods",
+        user,
+        body: `
+          <section class="card hero">
+            <h2>Barcode not found</h2>
+            <p>I could not find that barcode. You can still add it manually from the nutrition label.</p>
+            <a class="button primary" href="/foods">Back to foods</a>
+          </section>
+        `
+      }));
+      return;
+    }
+
+    const product = data.product;
+    const nutriments = product.nutriments || {};
+
+    const food = {
+      name: product.product_name || product.brands || `Barcode ${barcode}`,
+      baseQty: 1,
+      baseUnit: product.serving_size || "serving",
+      calories: Number(nutriments["energy-kcal_serving"] ?? nutriments["energy-kcal_100g"] ?? 0),
+      protein: Number(nutriments["proteins_serving"] ?? nutriments["proteins_100g"] ?? 0),
+      carbs: Number(nutriments["carbohydrates_serving"] ?? nutriments["carbohydrates_100g"] ?? 0),
+      fat: Number(nutriments["fat_serving"] ?? nutriments["fat_100g"] ?? 0),
+      sugar: Number(nutriments["sugars_serving"] ?? nutriments["sugars_100g"] ?? 0),
+      fiber: Number(nutriments["fiber_serving"] ?? nutriments["fiber_100g"] ?? 0),
+      category: "packaged",
+      aliases: [barcode, product.brands].filter(Boolean).join(", ")
+    };
+
+    const encoded = b64JsonEncode(food);
+
+    res.send(layout({
+      title: "Confirm packaged food",
+      active: "foods",
+      user,
+      body: `
+        <section class="card hero">
+          <h2>Confirm packaged food</h2>
+          <p>Check this before saving. Barcode databases are useful, but not always perfect.</p>
+        </section>
+
+        <section class="card">
+          <h2>${escapeHtml(food.name)}</h2>
+          <p>${escapeHtml(food.baseQty)} ${escapeHtml(food.baseUnit)}</p>
+
+          <div class="pill-row">
+            <span class="pill">${round0(food.calories)} cal</span>
+            <span class="pill">P ${round1(food.protein)}g</span>
+            <span class="pill">C ${round1(food.carbs)}g</span>
+            <span class="pill">F ${round1(food.fat)}g</span>
+            <span class="pill">Sug ${round1(food.sugar)}g</span>
+            <span class="pill">Fib ${round1(food.fiber)}g</span>
+          </div>
+
+          <form method="post" action="/foods/confirm-package">
+            <input type="hidden" name="food" value="${encoded}" />
+            <button class="button primary" type="submit">Save to fridge</button>
+            <a class="button secondary" href="/foods">Cancel</a>
+          </form>
+        </section>
+      `
+    }));
+  } catch (error) {
+    console.error(error);
+    res.send(layout({
+      title: "Barcode lookup failed",
+      active: "foods",
+      user,
+      body: `
+        <section class="card hero">
+          <h2>Barcode lookup failed</h2>
+          <p>${escapeHtml(error.message)}</p>
+          <a class="button primary" href="/foods">Back to foods</a>
+        </section>
+      `
+    }));
+  }
+});
+
+app.post("/foods/confirm-package", requireAuth, async (req, res) => {
+  const food = b64JsonDecode(req.body.food);
+
+  await addFood({
+    name: food.name,
+    aliases: String(food.aliases || "").split(",").map((x) => x.trim()).filter(Boolean),
+    base_qty: Number(food.baseQty || 1),
+    base_unit: food.baseUnit || "serving",
+    calories: Number(food.calories || 0),
+    protein_g: Number(food.protein || 0),
+    carbs_g: Number(food.carbs || 0),
+    fat_g: Number(food.fat || 0),
+    sugar_g: Number(food.sugar || 0),
+    fiber_g: Number(food.fiber || 0),
+    category: food.category || "packaged",
+    is_pantry: true,
+    include_in_recommendations: false
+  });
+
   res.redirect("/foods");
 });
 
