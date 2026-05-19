@@ -197,10 +197,72 @@ form.submit();
   }
 }
 
+async function handleBarcodeImageScan(event) {
+  event.preventDefault();
+
+  const input = document.getElementById("barcodeImageInput");
+  const status = document.getElementById("barcodeImageScanStatus");
+
+  if (!input || !status) return;
+
+  const file = input.files && input.files[0];
+
+  if (!file) {
+    status.textContent = "Choose a barcode photo first.";
+    return;
+  }
+
+  status.textContent = "Compressing barcode photo...";
+
+  try {
+    const imageDataUrl = await fileToCompressedDataUrl(file);
+
+    status.textContent = "Reading barcode...";
+
+    const response = await fetch("/foods/barcode-image-scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ imageDataUrl })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not scan barcode.");
+    }
+
+    const barcode = String(data.barcode || "").replace(/\D/g, "");
+
+    if (!barcode) {
+      throw new Error("No barcode number found.");
+    }
+
+    status.textContent = `Found barcode ${barcode}. Looking up product...`;
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/foods/barcode";
+
+    const barcodeInput = document.createElement("input");
+    barcodeInput.type = "hidden";
+    barcodeInput.name = "barcode";
+    barcodeInput.value = barcode;
+
+    form.appendChild(barcodeInput);
+    document.body.appendChild(form);
+    form.submit();
+  } catch (error) {
+    status.textContent = `Barcode scan failed: ${error.message}`;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const startBtn = document.getElementById("startBarcodeScanner");
   const stopBtn = document.getElementById("stopBarcodeScanner");
   const labelForm = document.getElementById("labelScanForm");
+  const barcodeImageForm = document.getElementById("barcodeImageScanForm");
 
   if (startBtn) {
     startBtn.addEventListener("click", startBarcodeScanner);
@@ -212,5 +274,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (labelForm) {
     labelForm.addEventListener("submit", handleLabelScan);
+  }
+
+  if (barcodeImageForm) {
+    barcodeImageForm.addEventListener("submit", handleBarcodeImageScan);
   }
 });
