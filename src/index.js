@@ -321,10 +321,18 @@ app.get("/foods", requireAuth, async (req, res) => {
         <p class="muted">Take or upload a clear photo of the Nutrition Facts label.</p>
 
         <form id="labelScanForm" class="grid-form">
-          <input class="input wide" id="labelImageInput" type="file" accept="image/*" capture="environment" required />
-          <button class="button primary wide" type="submit">Scan nutrition label</button>
-        </form>
-
+  <input
+    class="hidden-file-input"
+    id="labelImageInput"
+    type="file"
+    accept="image/*"
+    capture="environment"
+    required
+  />
+  <label class="button primary wide file-picker-button" for="labelImageInput">
+    Take photo / choose Nutrition Facts label
+  </label>
+</form>
         <p class="muted" id="labelScanStatus"></p>
       </section>
 
@@ -333,9 +341,18 @@ app.get("/foods", requireAuth, async (req, res) => {
         <p class="muted">Take or upload a clear photo of the barcode. The app will read the barcode number and look up the packaged food.</p>
 
         <form id="barcodeImageScanForm" class="grid-form">
-          <input class="input wide" id="barcodeImageInput" type="file" accept="image/*" capture="environment" required />
-          <button class="button primary wide" type="submit">Scan barcode photo</button>
-        </form>
+  <input
+    class="hidden-file-input"
+    id="barcodeImageInput"
+    type="file"
+    accept="image/*"
+    capture="environment"
+    required
+  />
+  <label class="button primary wide file-picker-button" for="barcodeImageInput">
+    Take photo / choose barcode
+  </label>
+</form>
 
         <p class="muted" id="barcodeImageScanStatus"></p>
 
