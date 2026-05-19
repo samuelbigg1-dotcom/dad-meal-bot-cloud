@@ -211,6 +211,34 @@ function maybeScaleBarcodeFoodServing(food) {
   };
 }
 
+function renderMacroPills(pillRow, food) {
+  if (!pillRow) return;
+  pillRow.innerHTML = `
+    <span class="pill">${Math.round(Number(food.calories || 0))} cal</span>
+    <span class="pill">P ${roundedMacro(food.protein)}g</span>
+    <span class="pill">C ${roundedMacro(food.carbs)}g</span>
+    <span class="pill">F ${roundedMacro(food.fat)}g</span>
+    <span class="pill">Sug ${roundedMacro(food.sugar)}g</span>
+    <span class="pill">Fib ${roundedMacro(food.fiber)}g</span>
+  `;
+}
+
+function addBarcodeServingNote(form, food, scaled) {
+  const existing = document.getElementById("barcodeServingNote");
+  if (existing) existing.remove();
+
+  const note = document.createElement("p");
+  note.id = "barcodeServingNote";
+  note.className = "muted";
+  note.textContent = scaled
+    ? `Showing macros for 1 serving (${food.baseUnit || "serving"}). Source: barcode database returned per-100g nutrition, so the app scaled it to the serving size. Whole package size: unknown unless the serving is the full package.`
+    : `Showing macros for 1 serving (${food.baseUnit || "serving"}). Source: barcode database serving values. Whole package size: unknown unless the serving is the full package.`;
+
+  const pillRow = form.querySelector(".pill-row");
+  if (pillRow) pillRow.insertAdjacentElement("afterend", note);
+  else form.appendChild(note);
+}
+
 function fixConfirmPackagedFoodIfNeeded() {
   const form = document.getElementById("confirm-package-form");
   if (!form) return;
@@ -221,26 +249,18 @@ function fixConfirmPackagedFoodIfNeeded() {
   try {
     const originalFood = decodeFoodPayload(hiddenFoodInput.value);
     const { food, scaled } = maybeScaleBarcodeFoodServing(originalFood);
-    if (!scaled) return;
 
     hiddenFoodInput.value = encodeFoodPayload(food);
 
     const servingLine = form.querySelector("p");
     if (servingLine) {
-      servingLine.textContent = `${food.baseQty || 1} ${food.baseUnit || "serving"} — corrected from barcode per-100g data`;
+      servingLine.textContent = scaled
+        ? `${food.baseQty || 1} ${food.baseUnit || "serving"} — corrected from barcode per-100g data`
+        : `${food.baseQty || 1} ${food.baseUnit || "serving"}`;
     }
 
-    const pillRow = form.querySelector(".pill-row");
-    if (pillRow) {
-      pillRow.innerHTML = `
-        <span class="pill">${Math.round(Number(food.calories || 0))} cal</span>
-        <span class="pill">P ${roundedMacro(food.protein)}g</span>
-        <span class="pill">C ${roundedMacro(food.carbs)}g</span>
-        <span class="pill">F ${roundedMacro(food.fat)}g</span>
-        <span class="pill">Sug ${roundedMacro(food.sugar)}g</span>
-        <span class="pill">Fib ${roundedMacro(food.fiber)}g</span>
-      `;
-    }
+    renderMacroPills(form.querySelector(".pill-row"), food);
+    addBarcodeServingNote(form, food, scaled);
   } catch (error) {
     // If the hidden payload is not the expected format, leave the page alone.
   }
