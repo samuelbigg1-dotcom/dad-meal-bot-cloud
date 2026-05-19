@@ -186,3 +186,55 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
 
   return JSON.parse(content);
 }
+
+export async function scanBarcodeImageWithAI(imageDataUrl) {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["barcode"],
+    properties: {
+      barcode: { type: "string" }
+    }
+  };
+
+  const completion = await openai.chat.completions.create({
+    model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You read UPC/EAN barcode numbers from package images. Return only the visible barcode digits. If no barcode is readable, return an empty string."
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Read the barcode number from this image. Return only the digits."
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: imageDataUrl
+            }
+          }
+        ]
+      }
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "barcode_scan",
+        strict: true,
+        schema
+      }
+    }
+  });
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) throw new Error("No barcode result returned.");
+
+  const parsed = JSON.parse(content);
+  return String(parsed.barcode || "").replace(/\D/g, "");
+}
