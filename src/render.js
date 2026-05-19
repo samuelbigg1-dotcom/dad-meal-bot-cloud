@@ -16,7 +16,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="/public/app.css" />
+  <link rel="stylesheet" href="/public/app.css?v=mobile-file-overlay-v1" />
 </head>
 <body>
   <div class="app-shell">
@@ -36,7 +36,8 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
       ${nav.map(([key, href, label]) => `<a class="${active === key ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
   </div>
-<script src="/public/app.js?v=real-file-input-v1"></script></body>
+  <script src="/public/app.js?v=mobile-file-overlay-v1"></script>
+</body>
 </html>`;
 }
 
