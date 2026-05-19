@@ -36,7 +36,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
       ${nav.map(([key, href, label]) => `<a class="${active === key ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
   </div>
-  <script src="/public/app.js?v=barcode-serving-fix-v3"></script>
+  <script src="/public/app.js?v=barcode-serving-note-v4"></script>
 </body>
 </html>`;
 }
