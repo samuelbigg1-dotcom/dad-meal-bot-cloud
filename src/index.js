@@ -39,7 +39,7 @@ const COOKIE_SECRET = process.env.COOKIE_SECRET || WEB_PIN || "dev-secret-change
 
 app.use(express.urlencoded({ extended: true, limit: "12mb" }));
 app.use(express.json({ limit: "50mb" }));
-app.use("/public", express.static("public", { maxAge: "1h" }));
+app.use("/public", express.static("public", { maxAge: "0" }));
 
 function sign(value) {
   return crypto.createHmac("sha256", COOKIE_SECRET).update(value).digest("hex");
