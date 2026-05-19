@@ -1,6 +1,12 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openaiClient = null;
+
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is missing.");
+  if (!openaiClient) openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return openaiClient;
+}
 
 const mealSchema = {
   type: "object",
@@ -34,10 +40,9 @@ const mealSchema = {
 };
 
 async function createStructuredMeal(messages) {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is missing.");
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
     model,
     temperature: 0.1,
     messages,
@@ -92,7 +97,7 @@ export async function explainRecommendationsWithAI({ totals, goals, remaining, o
   };
 
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
     model,
     temperature: 0.35,
     messages: [
@@ -145,7 +150,7 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
     }
   };
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
     model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
     temperature: 0,
     messages: [
@@ -197,7 +202,7 @@ export async function scanBarcodeImageWithAI(imageDataUrl) {
     }
   };
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
     model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
     temperature: 0,
     messages: [
