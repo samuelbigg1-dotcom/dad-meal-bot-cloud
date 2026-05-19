@@ -276,3 +276,25 @@ document.addEventListener("DOMContentLoaded", () => {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   margin: 1.25rem 0;
 }
+
+.scanner-box {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.scanner-box video {
+  width: 100%;
+  max-height: 320px;
+  border-radius: 0.9rem;
+  background: #020617;
+  object-fit: cover;
+}
+
+.soft-divider {
+  border: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  margin: 1.25rem 0;
+}
