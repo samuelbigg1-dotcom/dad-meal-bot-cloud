@@ -394,6 +394,15 @@ app.post("/foods/:id/toggle-recommend", requireAuth, async (req, res) => {
   res.redirect("/foods");
 });
 
+app.post("/foods/:id/remove-from-fridge", requireAuth, async (req, res) => {
+  await updateFoodFlags(Number(req.params.id), {
+    isPantry: false,
+    includeInRecommendations: false
+  });
+
+  res.redirect("/foods");
+});
+
 app.get("/history", requireAuth, async (req, res) => {
   const user = await currentUser();
   const end = new Date();
