@@ -116,3 +116,73 @@ export async function explainRecommendationsWithAI({ totals, goals, remaining, o
 
   return JSON.parse(content).recommendations || [];
 }
+
+export async function scanNutritionLabelWithAI(imageDataUrl) {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "name",
+      "baseQty",
+      "baseUnit",
+      "calories",
+      "protein",
+      "carbs",
+      "fat",
+      "sugar",
+      "fiber"
+    ],
+    properties: {
+      name: { type: "string" },
+      baseQty: { type: "number" },
+      baseUnit: { type: "string" },
+      calories: { type: "number" },
+      protein: { type: "number" },
+      carbs: { type: "number" },
+      fat: { type: "number" },
+      sugar: { type: "number" },
+      fiber: { type: "number" }
+    }
+  };
+
+  const completion = await openai.chat.completions.create({
+    model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You read Nutrition Facts labels from images. Return nutrition per serving. If a value is missing, use 0. Do not invent a brand name. If the food name is not visible, use 'Scanned packaged food'."
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text:
+              "Read this nutrition label. Extract calories, protein, carbs, fat, sugar, and fiber per serving. Also extract serving size as baseQty and baseUnit."
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: imageDataUrl
+            }
+          }
+        ]
+      }
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "nutrition_label_scan",
+        strict: true,
+        schema
+      }
+    }
+  });
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) throw new Error("No nutrition label result returned.");
+
+  return JSON.parse(content);
+}
