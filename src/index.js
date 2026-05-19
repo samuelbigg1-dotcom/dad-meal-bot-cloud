@@ -361,9 +361,9 @@ app.get("/foods", requireAuth, async (req, res) => {
               <form method="post" action="/foods/${food.id}/toggle-recommend">
                 <button class="chip ${food.include_in_recommendations ? "on" : "off"}" type="submit">${food.include_in_recommendations ? "Using in recommendations" : "Not currently recommending"}</button>
               </form>
-          <form method="POST" action="/foods/${food.id}/remove-from-fridge" class="inline-form">
-            <button class="btn btn-danger btn-small" type="submit">Remove from fridge</button>
-          </form>
+          <form method="POST" action="/foods/${food.id}/delete" class="inline-form" onsubmit="return confirm('Delete this food completely? This cannot be undone.');">
+  <button class="btn btn-danger btn-small" type="submit">Delete food</button>
+</form>
             </div>
           </div>`).join("")}
         </div>
@@ -539,12 +539,8 @@ app.post("/foods/:id/toggle-recommend", requireAuth, async (req, res) => {
   res.redirect("/foods");
 });
 
-app.post("/foods/:id/remove-from-fridge", requireAuth, async (req, res) => {
-  await updateFoodFlags(Number(req.params.id), {
-    isPantry: false,
-    includeInRecommendations: false
-  });
-
+app.post("/foods/:id/delete", requireAuth, async (req, res) => {
+  await deleteFood(Number(req.params.id));
   res.redirect("/foods");
 });
 
