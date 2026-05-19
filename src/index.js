@@ -322,16 +322,13 @@ app.get("/foods", requireAuth, async (req, res) => {
 
         <form id="labelScanForm" class="grid-form">
   <input
-    class="hidden-file-input"
+    class="file-input-button wide"
     id="labelImageInput"
     type="file"
     accept="image/*"
     capture="environment"
     required
   />
-  <label class="button primary wide file-picker-button" for="labelImageInput">
-    Take photo / choose Nutrition Facts label
-  </label>
 </form>
         <p class="muted" id="labelScanStatus"></p>
       </section>
@@ -342,16 +339,13 @@ app.get("/foods", requireAuth, async (req, res) => {
 
         <form id="barcodeImageScanForm" class="grid-form">
   <input
-    class="hidden-file-input"
+    class="file-input-button wide"
     id="barcodeImageInput"
     type="file"
     accept="image/*"
     capture="environment"
     required
   />
-  <label class="button primary wide file-picker-button" for="barcodeImageInput">
-    Take photo / choose barcode
-  </label>
 </form>
 
         <p class="muted" id="barcodeImageScanStatus"></p>
