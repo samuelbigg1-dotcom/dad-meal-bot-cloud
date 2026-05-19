@@ -100,3 +100,157 @@ p { color: var(--muted); line-height: 1.45; }
   border-color: rgba(16, 185, 129, 0.5);
   color: #bbf7d0;
 }
+
+let barcodeStream = null;
+let barcodeScanTimer = null;
+
+async function startBarcodeScanner() {
+  const video = document.getElementById("barcodeVideo");
+  const box = document.getElementById("barcodeScannerBox");
+  const status = document.getElementById("barcodeScannerStatus");
+  const input = document.getElementById("barcodeInput");
+  const startBtn = document.getElementById("startBarcodeScanner");
+  const stopBtn = document.getElementById("stopBarcodeScanner");
+  const form = document.getElementById("barcodeLookupForm");
+
+  if (!video || !box || !status || !input || !form) return;
+
+  if (!("BarcodeDetector" in globalThis)) {
+    status.textContent = "Camera barcode scan is not supported on this browser. Type the barcode manually.";
+    box.style.display = "block";
+    return;
+  }
+
+  try {
+    barcodeStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment"
+      }
+    });
+
+    video.srcObject = barcodeStream;
+    await video.play();
+
+    box.style.display = "block";
+    startBtn.style.display = "none";
+    stopBtn.style.display = "inline-flex";
+    status.textContent = "Scanning... point camera at barcode.";
+
+    const detector = new BarcodeDetector({
+      formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"]
+    });
+
+    barcodeScanTimer = setInterval(async () => {
+      try {
+        const codes = await detector.detect(video);
+
+        if (codes.length) {
+          const code = codes[0].rawValue;
+          input.value = code;
+          status.textContent = `Found barcode: ${code}`;
+          stopBarcodeScanner();
+          form.submit();
+        }
+      } catch (error) {
+        status.textContent = `Scanner error: ${error.message}`;
+      }
+    }, 500);
+  } catch (error) {
+    status.textContent = `Camera error: ${error.message}`;
+    box.style.display = "block";
+  }
+}
+
+function stopBarcodeScanner() {
+  const startBtn = document.getElementById("startBarcodeScanner");
+  const stopBtn = document.getElementById("stopBarcodeScanner");
+
+  if (barcodeScanTimer) {
+    clearInterval(barcodeScanTimer);
+    barcodeScanTimer = null;
+  }
+
+  if (barcodeStream) {
+    for (const track of barcodeStream.getTracks()) {
+      track.stop();
+    }
+    barcodeStream = null;
+  }
+
+  if (startBtn) startBtn.style.display = "inline-flex";
+  if (stopBtn) stopBtn.style.display = "none";
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleLabelScan(event) {
+  event.preventDefault();
+
+  const input = document.getElementById("labelImageInput");
+  const status = document.getElementById("labelScanStatus");
+
+  if (!input || !status || !input.files || !input.files[0]) return;
+
+  const file = input.files[0];
+
+  status.textContent = "Reading Nutrition Facts label...";
+
+  try {
+    const imageDataUrl = await fileToDataUrl(file);
+
+    const response = await fetch("/foods/label-scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ imageDataUrl })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not scan label.");
+    }
+
+    const food = data.food;
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(food))));
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/foods/confirm-package";
+
+    const foodInput = document.createElement("input");
+    foodInput.type = "hidden";
+    foodInput.name = "food";
+    foodInput.value = encoded;
+
+    const customNameInput = document.createElement("input");
+    customNameInput.type = "hidden";
+    customNameInput.name = "customName";
+    customNameInput.value = food.name || "Scanned packaged food";
+
+    form.appendChild(foodInput);
+    form.appendChild(customNameInput);
+    document.body.appendChild(form);
+    form.submit();
+  } catch (error) {
+    status.textContent = `Label scan failed: ${error.message}`;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const startBtn = document.getElementById("startBarcodeScanner");
+  const stopBtn = document.getElementById("stopBarcodeScanner");
+  const labelForm = document.getElementById("labelScanForm");
+
+  if (startBtn) startBtn.addEventListener("click", startBarcodeScanner);
+  if (stopBtn) stopBtn.addEventListener("click", stopBarcodeScanner);
+  if (labelForm) labelForm.addEventListener("submit", handleLabelScan);
+});
