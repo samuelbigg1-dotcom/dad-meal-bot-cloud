@@ -178,26 +178,20 @@ async function handleLabelScan(event) {
       throw new Error("No food data returned from label scan.");
     }
 
-    status.textContent = "Label read. Saving food...";
+    status.textContent = "Label read. Opening confirmation...";
 
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = "/foods/confirm-package";
+const form = document.createElement("form");
+form.method = "POST";
+form.action = "/foods/confirm-scanned-label";
 
-    const foodInput = document.createElement("input");
-    foodInput.type = "hidden";
-    foodInput.name = "food";
-    foodInput.value = encodeFoodPayload(data.food);
+const foodInput = document.createElement("input");
+foodInput.type = "hidden";
+foodInput.name = "food";
+foodInput.value = encodeFoodPayload(data.food);
 
-    const customNameInput = document.createElement("input");
-    customNameInput.type = "hidden";
-    customNameInput.name = "customName";
-    customNameInput.value = data.food.name || "Scanned packaged food";
-
-    form.appendChild(foodInput);
-    form.appendChild(customNameInput);
-    document.body.appendChild(form);
-    form.submit();
+form.appendChild(foodInput);
+document.body.appendChild(form);
+form.submit();
   } catch (error) {
     status.textContent = `Label scan failed: ${error.message}`;
   }
