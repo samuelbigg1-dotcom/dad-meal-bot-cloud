@@ -452,10 +452,18 @@ app.post("/foods/barcode", requireAuth, async (req, res) => {
         </section>
 
         <section class="card">
-          <h2>${escapeHtml(food.name)}</h2>
-          <p>${escapeHtml(food.baseQty)} ${escapeHtml(food.baseUnit)}</p>
+          <label class="label">Food name</label>
+<input
+  class="input wide"
+  form="confirm-package-form"
+  name="customName"
+  value="${escapeHtml(food.name)}"
+  placeholder="Enter food name"
+/>
 
-          <div class="pill-row">
+<p>${escapeHtml(food.baseQty)} ${escapeHtml(food.baseUnit)}</p>
+
+<div class="pill-row">
             <span class="pill">${round0(food.calories)} cal</span>
             <span class="pill">P ${round1(food.protein)}g</span>
             <span class="pill">C ${round1(food.carbs)}g</span>
