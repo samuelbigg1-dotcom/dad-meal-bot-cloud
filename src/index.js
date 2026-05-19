@@ -24,7 +24,7 @@ import {
   updateFoodFlags,
   upsertUser
 } from "./db.js";
-import { parseMealWithAI, explainRecommendationsWithAI, scanNutritionLabelWithAI } from "./ai.js";
+import { parseMealWithAI, explainRecommendationsWithAI, scanNutritionLabelWithAI, scanBarcodeImageWithAI } from "./ai.js";
 import { calculateItems, totalItems } from "./nutrition.js";
 import { generateRecommendations, remainingMacros } from "./recommendations.js";
 import { addDays, b64JsonDecode, b64JsonEncode, csvEscape, escapeHtml, macroGoalsFromUser, round0, round1, todayInTimezone } from "./utils.js";
@@ -317,7 +317,40 @@ app.get("/foods", requireAuth, async (req, res) => {
       </section>
 
       <section class="card">
-        <h2>Add food</h2>
+        <h2>1. Scan Nutrition Facts label</h2>
+        <p class="muted">Take or upload a clear photo of the Nutrition Facts label.</p>
+
+        <form id="labelScanForm" class="grid-form">
+          <input class="input wide" id="labelImageInput" type="file" accept="image/*" capture="environment" required />
+          <button class="button primary wide" type="submit">Scan nutrition label</button>
+        </form>
+
+        <p class="muted" id="labelScanStatus"></p>
+      </section>
+
+      <section class="card">
+        <h2>2. Scan barcode</h2>
+        <p class="muted">Take or upload a clear photo of the barcode. The app will read the barcode number and look up the packaged food.</p>
+
+        <form id="barcodeImageScanForm" class="grid-form">
+          <input class="input wide" id="barcodeImageInput" type="file" accept="image/*" capture="environment" required />
+          <button class="button primary wide" type="submit">Scan barcode photo</button>
+        </form>
+
+        <p class="muted" id="barcodeImageScanStatus"></p>
+
+        <hr class="soft-divider" />
+
+        <p class="muted">Or type the barcode number manually.</p>
+
+        <form method="post" action="/foods/barcode" class="grid-form" id="barcodeLookupForm">
+          <input class="input wide" id="barcodeInput" name="barcode" placeholder="Barcode / UPC number" required />
+          <button class="button primary wide" type="submit">Look up barcode</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>3. Add food manually</h2>
         <form method="post" action="/foods" class="grid-form">
           <input class="input" name="name" placeholder="Name" required />
           <input class="input" name="baseQty" placeholder="Base qty" type="number" step="0.001" required />
@@ -332,38 +365,6 @@ app.get("/foods", requireAuth, async (req, res) => {
           <input class="input wide" name="aliases" placeholder="Aliases, comma separated" />
           <button class="button primary wide" type="submit">Save food</button>
         </form>
-      </section>
-
-            <section class="card">
-        <h2>Add packaged food</h2>
-        <p>Type the barcode number from the package, then confirm before saving.</p>
-
-               <form method="post" action="/foods/barcode" class="grid-form" id="barcodeLookupForm">
-          <input class="input wide" id="barcodeInput" name="barcode" placeholder="Barcode / UPC number" required />
-          <button class="button primary wide" type="submit">Look up barcode</button>
-        </form>
-
-        <div class="action-row">
-          <button class="button" type="button" id="startBarcodeScanner">Scan barcode with camera</button>
-          <button class="button secondary" type="button" id="stopBarcodeScanner" style="display:none;">Stop camera</button>
-        </div>
-
-        <div id="barcodeScannerBox" class="scanner-box" style="display:none;">
-          <video id="barcodeVideo" playsinline muted></video>
-          <p class="muted" id="barcodeScannerStatus">Point camera at barcode.</p>
-        </div>
-
-        <hr class="soft-divider" />
-
-        <h3>Scan Nutrition Facts label</h3>
-        <p class="muted">Take or upload a clear photo of the nutrition label.</p>
-
-        <form id="labelScanForm" class="grid-form">
-          <input class="input wide" id="labelImageInput" type="file" accept="image/*" capture="environment" required />
-          <button class="button primary wide" type="submit">Scan nutrition label</button>
-        </form>
-
-        <p class="muted" id="labelScanStatus"></p>
       </section>
 
       <section class="card">
@@ -549,6 +550,29 @@ app.post("/foods/label-scan", requireAuth, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message || "Could not scan nutrition label." });
+  }
+});
+
+app.post("/foods/barcode-image-scan", requireAuth, async (req, res) => {
+  const imageDataUrl = String(req.body.imageDataUrl || "");
+
+  if (!imageDataUrl.startsWith("data:image/")) {
+    res.status(400).json({ error: "Missing image. Upload a clear photo of the barcode." });
+    return;
+  }
+
+  try {
+    const barcode = await scanBarcodeImageWithAI(imageDataUrl);
+
+    if (!barcode) {
+      res.status(400).json({ error: "Could not read a barcode from that image." });
+      return;
+    }
+
+    res.json({ barcode });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message || "Could not scan barcode image." });
   }
 });
 
