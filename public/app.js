@@ -263,6 +263,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const stopBtn = document.getElementById("stopBarcodeScanner");
   const labelForm = document.getElementById("labelScanForm");
   const barcodeImageForm = document.getElementById("barcodeImageScanForm");
+  const labelImageInput = document.getElementById("labelImageInput");
+  const barcodeImageInput = document.getElementById("barcodeImageInput");
 
   if (startBtn) {
     startBtn.addEventListener("click", startBarcodeScanner);
@@ -278,5 +280,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (barcodeImageForm) {
     barcodeImageForm.addEventListener("submit", handleBarcodeImageScan);
+  }
+
+  // Phone-friendly: as soon as a photo/file is selected, start scanning.
+  if (labelImageInput && labelForm) {
+    labelImageInput.addEventListener("change", () => {
+      if (labelImageInput.files && labelImageInput.files[0]) {
+        labelForm.requestSubmit();
+      }
+    });
+  }
+
+  if (barcodeImageInput && barcodeImageForm) {
+    barcodeImageInput.addEventListener("change", () => {
+      if (barcodeImageInput.files && barcodeImageInput.files[0]) {
+        barcodeImageForm.requestSubmit();
+      }
+    });
   }
 });
