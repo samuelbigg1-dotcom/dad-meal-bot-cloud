@@ -451,31 +451,34 @@ app.post("/foods/barcode", requireAuth, async (req, res) => {
           <p>Check this before saving. Barcode databases are useful, but not always perfect.</p>
         </section>
 
-        <section class="card">
-          <label class="label">Food name</label>
-<input
-  class="input wide"
-  form="confirm-package-form"
-  name="customName"
-  value="${escapeHtml(food.name)}"
-  placeholder="Enter food name"
-/>
-
-<p>${escapeHtml(food.baseQty)} ${escapeHtml(food.baseUnit)}</p>
-
-<div class="pill-row">
-            <span class="pill">${round0(food.calories)} cal</span>
-            <span class="pill">P ${round1(food.protein)}g</span>
-            <span class="pill">C ${round1(food.carbs)}g</span>
-            <span class="pill">F ${round1(food.fat)}g</span>
-            <span class="pill">Sug ${round1(food.sugar)}g</span>
-            <span class="pill">Fib ${round1(food.fiber)}g</span>
-          </div>
-
-          <form method="post" action="/foods/confirm-package">
+         <section class="card">
+          <form id="confirm-package-form" method="post" action="/foods/confirm-package" class="stack">
             <input type="hidden" name="food" value="${encoded}" />
-            <button class="button primary" type="submit">Save to fridge</button>
-            <a class="button secondary" href="/foods">Cancel</a>
+
+            <label class="field-label">Food name</label>
+            <input
+              class="input wide"
+              name="customName"
+              value="${escapeHtml(food.name)}"
+              placeholder="Enter food name"
+              required
+            />
+
+            <p>${escapeHtml(food.baseQty)} ${escapeHtml(food.baseUnit)}</p>
+
+            <div class="pill-row">
+              <span class="pill">${round0(food.calories)} cal</span>
+              <span class="pill">P ${round1(food.protein)}g</span>
+              <span class="pill">C ${round1(food.carbs)}g</span>
+              <span class="pill">F ${round1(food.fat)}g</span>
+              <span class="pill">Sug ${round1(food.sugar)}g</span>
+              <span class="pill">Fib ${round1(food.fiber)}g</span>
+            </div>
+
+            <div class="action-row">
+              <button class="button primary" type="submit">Save to fridge</button>
+              <a class="button secondary" href="/foods">Cancel</a>
+            </div>
           </form>
         </section>
       `
@@ -500,8 +503,11 @@ app.post("/foods/barcode", requireAuth, async (req, res) => {
 app.post("/foods/confirm-package", requireAuth, async (req, res) => {
   const food = b64JsonDecode(req.body.food);
 
+  const customName = String(req.body.customName || "").trim();
+  const finalName = customName || food.name || "Packaged food";
+
   await addFood({
-    name: food.name,
+    name: finalName,
     aliases: String(food.aliases || "").split(",").map((x) => x.trim()).filter(Boolean),
     base_qty: Number(food.baseQty || 1),
     base_unit: food.baseUnit || "serving",
