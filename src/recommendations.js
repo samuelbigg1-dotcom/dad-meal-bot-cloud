@@ -1,4 +1,3 @@
-import { execFileSync } from "child_process";
 import { scaledFoodItem, totalItems } from "./nutrition.js";
 import { round0, round1 } from "./utils.js";
 
@@ -194,53 +193,9 @@ function pushIfRealistic(candidates, { totals, goals, items }) {
 }
 
 function validateWithOpenAISync(candidates) {
-  if (!process.env.OPENAI_API_KEY || !candidates.length) return candidates;
-  const limited = candidates.slice(0, Math.min(12, candidates.length));
-  const input = {
-    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-    options: limited.map((option, index) => ({
-      index,
-      title: option.title,
-      items: option.items.map((item) => ({ name: item.food_name, quantity: item.quantity, unit: item.unit }))
-    }))
-  };
-  const code = `
-const fs = require('fs');
-const input = JSON.parse(fs.readFileSync(0, 'utf8'));
-const schema = { type:'object', additionalProperties:false, required:['results'], properties:{ results:{ type:'array', items:{ type:'object', additionalProperties:false, required:['index','is_realistic','title','reason'], properties:{ index:{type:'number'}, is_realistic:{type:'boolean'}, title:{type:'string'}, reason:{type:'string'} } } } } };
-(async () => {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + process.env.OPENAI_API_KEY },
-    body: JSON.stringify({
-      model: input.model,
-      temperature: 0,
-      messages:[
-        { role:'system', content:'You are a meal realism checker. Reject random macro piles and food pairings a normal person would not eat. Reject salmon with peanut butter, fish with yogurt, steak with berries, random fruit beside meat, or multiple unrelated main proteins. Accept normal meals like chicken rice broccoli, salmon potato salad, eggs toast fruit, Greek yogurt berries oats, tuna sandwich, beef rice vegetables. Return only JSON.' },
-        { role:'user', content: JSON.stringify({ options: input.options }) }
-      ],
-      response_format:{ type:'json_schema', json_schema:{ name:'meal_realism_check', strict:true, schema } }
-    })
-  });
-  const data = await response.json();
-  process.stdout.write(data.choices?.[0]?.message?.content || JSON.stringify({ results: input.options.map(o => ({ index:o.index, is_realistic:true, title:o.title, reason:'No AI result' })) }));
-})().catch(() => process.stdout.write(JSON.stringify({ results: input.options.map(o => ({ index:o.index, is_realistic:true, title:o.title, reason:'AI validation failed open' })) })));
-`;
-  try {
-    const raw = execFileSync(process.execPath, ["-e", code], { input: JSON.stringify(input), encoding: "utf8", timeout: 18000, maxBuffer: 1024 * 1024 });
-    const parsed = JSON.parse(raw);
-    const acceptedIndexes = new Set((parsed.results || []).filter((r) => r.is_realistic).map((r) => Number(r.index)));
-    const titleByIndex = new Map((parsed.results || []).map((r) => [Number(r.index), r.title]));
-    const reasonByIndex = new Map((parsed.results || []).map((r) => [Number(r.index), r.reason]));
-    const accepted = limited.filter((_, index) => acceptedIndexes.has(index)).map((option, index) => ({
-      ...option,
-      title: titleByIndex.get(index) || option.title,
-      reason: reasonByIndex.get(index) || option.reason
-    }));
-    return accepted.length ? accepted : candidates.slice(0, 5);
-  } catch (error) {
-    return candidates;
-  }
+  // Disabled for deployment safety. The next version should run OpenAI validation
+  // in the async recommendations route, not inside this synchronous generator.
+  return candidates;
 }
 
 export function generateRecommendations({ totals, goals, foods, count = 5 }) {
