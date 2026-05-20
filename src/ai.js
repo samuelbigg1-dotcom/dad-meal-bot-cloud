@@ -94,6 +94,68 @@ Accuracy rules:
   ]);
 }
 
+export async function validateRecommendationsWithAI({ options }) {
+  if (!process.env.OPENAI_API_KEY || !options.length) {
+    return options.map((option, index) => ({ index, is_realistic: true, title: option.title, reason: "AI validation skipped." }));
+  }
+
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["results"],
+    properties: {
+      results: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["index", "is_realistic", "title", "reason", "fix_note"],
+          properties: {
+            index: { type: "number" },
+            is_realistic: { type: "boolean" },
+            title: { type: "string" },
+            reason: { type: "string" },
+            fix_note: { type: "string" }
+          }
+        }
+      }
+    }
+  };
+
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const completion = await getOpenAIClient().chat.completions.create({
+    model,
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content: `You are a meal realism checker for a macro tracker.
+Your job is NOT to optimize macros. Your job is to decide if a suggested meal is something a normal person would actually eat.
+Reject weird macro piles, random combinations, clashing flavors, or items that only make sense separately.
+Examples to reject: salmon with peanut butter, tuna with yogurt, steak with berries, random fruit beside chicken, multiple unrelated proteins.
+Examples to accept: chicken rice broccoli, salmon potato salad, eggs toast fruit, Greek yogurt berries oats, cottage cheese berries, tuna sandwich, beef rice vegetables.
+Return is_realistic=false for anything awkward, gross, confusing, or not a real meal.
+Keep titles short and human.`
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          options: options.map((option, index) => ({
+            index,
+            title: option.title,
+            items: option.items.map((item) => ({ name: item.food_name, quantity: item.quantity, unit: item.unit }))
+          }))
+        }, null, 2)
+      }
+    ],
+    response_format: { type: "json_schema", json_schema: { name: "meal_realism_check", strict: true, schema } }
+  });
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) return options.map((option, index) => ({ index, is_realistic: true, title: option.title, reason: "AI validation returned no content.", fix_note: "" }));
+  return JSON.parse(content).results || [];
+}
+
 export async function explainRecommendationsWithAI({ totals, goals, remaining, options }) {
   if (!process.env.OPENAI_API_KEY || !options.length) {
     return options.map((o) => ({
