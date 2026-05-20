@@ -61,13 +61,22 @@
 }
 .assistant-head strong { display: block; font-size: 17px; }
 .assistant-head span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
-.assistant-prompts {
+.assistant-prompts,
+.assistant-suggestions {
   display: flex;
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
 }
-.assistant-prompts button {
+.assistant-suggestions {
+  align-self: flex-start;
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  padding: 2px 0 4px;
+}
+.assistant-prompts button,
+.assistant-suggestions button {
   flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -77,6 +86,7 @@
   font: inherit;
   font-size: 12px;
 }
+.assistant-suggestions button { background: transparent; }
 .assistant-messages {
   min-height: 180px;
   overflow-y: auto;
