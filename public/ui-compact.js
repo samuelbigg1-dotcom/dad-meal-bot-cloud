@@ -153,35 +153,15 @@
     const fiberLeft = Math.round(remaining(fiber));
 
     if (protein && protein.percent < 80) {
-      return {
-        title: "Next move",
-        badge: "Protein first",
-        body: `${calLeft} calories left today. Protein is still low${proteinLeft ? ` — about ${proteinLeft}g left` : ""}.${fiber && fiber.percent < 70 ? ` Fiber is low too, about ${fiberLeft}g left.` : ""}`,
-        cta: "Meals can suggest a simple high-protein option from available foods."
-      };
+      return { title: "Next move", badge: "Protein first", body: `${calLeft} calories left today. Protein is still low${proteinLeft ? ` — about ${proteinLeft}g left` : ""}.${fiber && fiber.percent < 70 ? ` Fiber is low too, about ${fiberLeft}g left.` : ""}`, cta: "Meals can suggest a simple high-protein option from available foods." };
     }
     if (sugar && sugar.percent >= 90) {
-      return {
-        title: "Next move",
-        badge: sugar.percent >= 105 ? "Sugar high" : "Watch sugar",
-        body: `${calLeft} calories left today. Sugar is already ${sugar.percent >= 105 ? "over target" : "getting close"}, so the next meal should be lower sugar.`,
-        cta: "Aim for protein and fiber instead of another sweet snack."
-      };
+      return { title: "Next move", badge: sugar.percent >= 105 ? "Sugar high" : "Watch sugar", body: `${calLeft} calories left today. Sugar is already ${sugar.percent >= 105 ? "over target" : "getting close"}, so the next meal should be lower sugar.`, cta: "Aim for protein and fiber instead of another sweet snack." };
     }
     if (calories && calories.percent >= 95) {
-      return {
-        title: "Next move",
-        badge: "Keep it light",
-        body: `Calories are almost used up for today. Protein-focused and smaller is the move now.`,
-        cta: "Use Meals only if another meal is actually needed."
-      };
+      return { title: "Next move", badge: "Keep it light", body: `Calories are almost used up for today. Protein-focused and smaller is the move now.`, cta: "Use Meals only if another meal is actually needed." };
     }
-    return {
-      title: "Next move",
-      badge: "Balanced option",
-      body: `${calLeft} calories left today. Nothing looks urgent, so keep the next meal balanced.`,
-      cta: "Meals can pick from what is marked available."
-    };
+    return { title: "Next move", badge: "Balanced option", body: `${calLeft} calories left today. Nothing looks urgent, so keep the next meal balanced.`, cta: "Meals can pick from what is marked available." };
   }
 
   function addTodayStatus() {
@@ -247,12 +227,7 @@
     const content = document.querySelector(".content");
     if (!content || document.querySelector(".foods-primary-scan")) return;
     const hero = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.includes("Available foods"));
-    if (hero) {
-      hero.classList.add("compact-card", "foods-hero");
-      const h2 = hero.querySelector("h2"); const p = hero.querySelector("p");
-      if (h2) h2.textContent = "Foods";
-      if (p) p.textContent = "Scan, save, search, or add custom foods.";
-    }
+    if (hero) { hero.classList.add("compact-card", "foods-hero"); const h2 = hero.querySelector("h2"); const p = hero.querySelector("p"); if (h2) h2.textContent = "Foods"; if (p) p.textContent = "Scan, save, search, or add custom foods."; }
     const labelCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("#labelScanForm"));
     const barcodeCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("#barcodeImageScanForm"));
     const manualCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.includes("Add food manually"));
@@ -306,6 +281,15 @@
     return score;
   }
 
+  function cleanConfirmRowText(row, score, item) {
+    const info = row.querySelector("p");
+    if (!info) return;
+    const qty = item.quantity || "";
+    const unit = item.unit || "";
+    const note = String(item.note || "").replace(/^Matched known food:\s*/i, "Matched: ").replace(/Used base portion because unit did not match:.*/i, "Using saved serving size.");
+    info.textContent = `${qty} ${unit} • ${score}% confidence${note ? ` • ${note}` : ""}`.replace(/\s+/g, " ").trim();
+  }
+
   function addMealConfidenceTools() {
     const form = document.querySelector("form[action='/log/confirm']");
     if (!form || document.querySelector(".confidence-warning")) return;
@@ -318,9 +302,7 @@
       const score = Number.isFinite(Number(item.confidence_percent)) ? Math.round(Number(item.confidence_percent)) : confidenceFallback(row);
       lowest = Math.min(lowest, score);
       row.classList.add("confidence-row", score < 60 ? "low-confidence" : score < 80 ? "medium-confidence" : "high-confidence");
-      const info = row.querySelector("p");
-      if (info && !info.querySelector(".confidence-score")) info.insertAdjacentHTML("beforeend", ` <span class="confidence-score">${score}% confidence</span>`);
-      if (item.note && info && !info.querySelector(".confidence-note")) info.insertAdjacentHTML("beforeend", `<span class="confidence-note">${item.note}</span>`);
+      cleanConfirmRowText(row, score, item);
       if (score < 60 && !row.querySelector(".double-check-link")) {
         const name = row.querySelector("strong")?.textContent?.trim() || "food";
         const link = document.createElement("a");
@@ -351,9 +333,7 @@
     }
   }
 
-  function compactHistory() {
-    document.querySelectorAll("section.card").forEach((card) => card.classList.add("compact-card"));
-  }
+  function compactHistory() { document.querySelectorAll("section.card").forEach((card) => card.classList.add("compact-card")); }
 
   function compactConfirm() {
     const confirmForm = document.querySelector("#confirm-package-form");
