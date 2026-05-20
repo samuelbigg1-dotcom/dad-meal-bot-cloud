@@ -1,17 +1,100 @@
 (function () {
   const FALLBACK_TEXT = "I’m not sure yet. I can help with progress, goals, meals, scanning food, custom foods, saved foods, and health scores.";
 
-  function quickAnswer(question) {
+  function text(el) {
+    return el?.textContent?.replace(/\s+/g, " ").trim() || "";
+  }
+
+  function parseMacroCards(doc) {
+    const cards = [...doc.querySelectorAll(".macro-card")];
+    return cards.map((card) => {
+      const label = text(card.querySelector(".macro-head span"));
+      const percent = Number((text(card.querySelector(".macro-head strong")).match(/-?\d+/) || [0])[0]);
+      const values = text(card.querySelector(".macro-values"));
+      return { label, percent, values, status: [...card.classList].find((c) => ["low", "ok", "near", "over"].includes(c)) || "" };
+    }).filter((m) => m.label);
+  }
+
+  async function getTodayDocument() {
+    if (text(document.querySelector("h1")).toLowerCase() === "today" && document.querySelector(".macro-card")) return document;
+    const response = await fetch("/", { credentials: "same-origin" });
+    const html = await response.text();
+    return new DOMParser().parseFromString(html, "text/html");
+  }
+
+  function macroByName(macros, name) {
+    return macros.find((m) => m.label.toLowerCase() === name.toLowerCase());
+  }
+
+  function describeMacro(macro, kind = "normal") {
+    if (!macro) return "";
+    if (macro.percent >= 105) return `${macro.label} is over target (${macro.values}).`;
+    if (macro.percent >= 95) return `${macro.label} is basically met (${macro.values}).`;
+    if (macro.percent >= 80) return `${macro.label} is close (${macro.values}).`;
+    if (macro.percent < 50) return `${macro.label} is still low (${macro.values}).`;
+    return `${macro.label} has room left (${macro.values}).`;
+  }
+
+  async function analyzeToday() {
+    try {
+      const doc = await getTodayDocument();
+      const macros = parseMacroCards(doc);
+      if (!macros.length) return "I can’t read today’s macro cards yet. Open Today once, then ask me again.";
+
+      const calories = macroByName(macros, "Calories");
+      const protein = macroByName(macros, "Protein");
+      const carbs = macroByName(macros, "Carbs");
+      const fat = macroByName(macros, "Fat");
+      const sugar = macroByName(macros, "Sugar");
+      const fiber = macroByName(macros, "Fiber");
+
+      const notes = [];
+      if (calories) notes.push(describeMacro(calories));
+      if (protein) notes.push(describeMacro(protein));
+      if (sugar && sugar.percent >= 90) notes.push(`Sugar is ${sugar.percent >= 105 ? "over" : "getting high"} (${sugar.values}).`);
+      if (fiber && fiber.percent < 70) notes.push(`Fiber is low (${fiber.values}).`);
+      if (fat && fat.percent >= 105) notes.push(`Fat is over target (${fat.values}).`);
+      if (carbs && carbs.percent >= 105) notes.push(`Carbs are over target (${carbs.values}).`);
+
+      let next = "";
+      if (protein && protein.percent < 90) {
+        next = "Best move: prioritize protein next. The Meals tab can suggest something from available foods.";
+      } else if (sugar && sugar.percent >= 90) {
+        next = "Best move: keep the next meal lower sugar and focus on protein/fiber.";
+      } else if (calories && calories.percent >= 95) {
+        next = "Best move: you’re close on calories, so keep anything else small and protein-focused.";
+      } else {
+        next = "Best move: use Suggested next or Meals for a balanced next option based on what’s available.";
+      }
+
+      return `${notes.slice(0, 5).join(" ")} ${next}`;
+    } catch (error) {
+      return "I couldn’t read today’s live totals yet. Try opening the Today page and asking again.";
+    }
+  }
+
+  async function suggestNextMeal() {
+    const reflection = await analyzeToday();
+    return `${reflection} Tap Meals to see specific options from the foods marked available.`;
+  }
+
+  async function quickAnswer(question) {
     const q = question.toLowerCase();
 
-    if (q.includes("how") && q.includes("doing")) {
-      return "Check the Today page first: calories show the overall daily target, and the macro cards show protein, carbs, fat, sugar, and fiber progress. Protein is usually the most important one to watch for muscle gain.";
+    if ((q.includes("how") && q.includes("doing")) || q.includes("today") || q.includes("day so far")) {
+      return analyzeToday();
+    }
+    if (q.includes("what") && q.includes("eat")) {
+      return suggestNextMeal();
     }
     if (q.includes("goal") || q.includes("goals")) {
-      return "Tap the ⌘ settings icon to view or change calorie and macro goals. Keep changes simple and only adjust goals when progress trends say it makes sense.";
+      return "Tap the settings gear to view or change calorie and macro goals. Keep changes simple and only adjust goals when progress trends say it makes sense.";
     }
     if (q.includes("protein")) {
-      return "Protein progress is shown on Today. If protein is low, use Meals for ideas or log a protein-heavy meal like eggs, Greek yogurt, chicken, tuna, lean beef, or a smoothie.";
+      const doc = await getTodayDocument().catch(() => null);
+      const protein = doc ? macroByName(parseMacroCards(doc), "Protein") : null;
+      if (protein) return `${describeMacro(protein)} If protein is low, use Meals for ideas or log something protein-heavy like eggs, Greek yogurt, chicken, tuna, lean beef, or a smoothie.`;
+      return "Protein progress is shown on Today. If protein is low, use Meals for ideas or log a protein-heavy meal.";
     }
     if (q.includes("scan")) {
       return "Tap Scan food, take a clear photo of either the barcode or Nutrition Facts label, then confirm the food. On the confirm screen you can choose Add to fridge, I ate this today, or Both.";
@@ -27,9 +110,6 @@
     }
     if (q.includes("score") || q.includes("health")) {
       return "The health score uses barcode nutrition data when available, including Nutri-Score and NOVA processing info from OpenFoodFacts. If barcode data is missing, it uses the scanned nutrition values like calories, sugar, fat, fiber, protein, and sodium when available.";
-    }
-    if (q.includes("what") && q.includes("eat")) {
-      return "Tap Meals or Suggested next on Today. Meal ideas are based on the foods marked available and how the day’s macros are looking.";
     }
 
     return FALLBACK_TEXT;
@@ -100,7 +180,7 @@
     const form = panel.querySelector(".assistant-form");
     const input = form.querySelector("input");
 
-    addMessage(messages, "bot", "Ask me about progress, goals, meal ideas, food scanning, custom foods, saved foods, or health scores.");
+    addMessage(messages, "bot", "Ask me how the day is going, what to eat next, or how to use scanning/custom foods.");
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -108,8 +188,15 @@
       if (!question) return;
       addMessage(messages, "user", question);
       input.value = "";
-      window.setTimeout(() => {
-        const answer = quickAnswer(question);
+      const loading = document.createElement("div");
+      loading.className = "assistant-message bot assistant-loading";
+      loading.textContent = "Checking today...";
+      messages.appendChild(loading);
+      messages.scrollTop = messages.scrollHeight;
+
+      window.setTimeout(async () => {
+        const answer = await quickAnswer(question);
+        loading.remove();
         addMessage(messages, "bot", answer);
         if (answer === FALLBACK_TEXT) addFallbackPrompts(messages, form, input);
       }, 120);
