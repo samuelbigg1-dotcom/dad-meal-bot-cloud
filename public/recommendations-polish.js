@@ -30,10 +30,11 @@
       .compact-ui .meal-summary-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
       .compact-ui .meal-summary-row span { border: 1px solid var(--line); border-radius: 999px; padding: 7px 9px; font-size: 12px; font-weight: 900; background: var(--card2); }
       .compact-ui .why-this-works { color: var(--muted); line-height: 1.35; margin: 2px 0 8px; }
-      .compact-ui .simple-ingredients { display: grid; gap: 7px; margin: 10px 0; }
-      .compact-ui .simple-ingredient { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--card2); padding: 10px; }
-      .compact-ui .simple-ingredient strong { font-size: 14px; }
-      .compact-ui .simple-ingredient span { color: var(--accent); font-weight: 950; white-space: nowrap; }
+      .compact-ui .meal-build { display: grid; gap: 7px; margin: 10px 0; }
+      .compact-ui .meal-part { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--card2); padding: 10px; }
+      .compact-ui .meal-part strong { font-size: 14px; }
+      .compact-ui .meal-part span { color: var(--accent); font-weight: 950; white-space: nowrap; }
+      .compact-ui .meal-part-label { font-size: 11px; color: var(--muted); font-weight: 900; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
       .compact-ui .rec-actions { display: grid; gap: 8px; margin-top: 10px; }
       .compact-ui .rec-actions .button { width: 100%; justify-content: center; }
       .compact-ui .secondary-note { font-size: 12px; color: var(--muted); text-align: center; }
@@ -48,6 +49,16 @@
     });
   }
 
+  function partLabel(name) {
+    const n = String(name || "").toLowerCase();
+    if (/chicken|salmon|tuna|beef|steak|turkey|pork|egg|yogurt|cottage|protein|shrimp|tofu/.test(n)) return "main";
+    if (/rice|potato|bread|toast|wrap|tortilla|pasta|oat|quinoa|cereal/.test(n)) return "side";
+    if (/broccoli|spinach|salad|lettuce|tomato|pepper|carrot|cucumber|vegetable|zucchini/.test(n)) return "veg";
+    if (/banana|apple|berries|fruit|orange/.test(n)) return "fruit";
+    if (/peanut butter|almond butter|avocado|nuts|oil|cheese/.test(n)) return "add-on";
+    return "item";
+  }
+
   function polishRecommendations() {
     const title = text(document.querySelector("h1")).toLowerCase();
     if (!title.includes("recommend")) return;
@@ -59,7 +70,7 @@
       const h2 = hero.querySelector("h2");
       const p = hero.querySelector("p");
       if (h2) h2.textContent = "What to eat next";
-      if (p) p.textContent = "Simple meal ideas from foods marked available. Pick one, log it, and move on.";
+      if (p) p.textContent = "Realistic meal ideas from foods marked available. Not random macro piles.";
     }
 
     const cards = [...document.querySelectorAll(".rec-card")];
@@ -67,27 +78,27 @@
       if (card.querySelector(".meal-suggestion-top")) return;
       card.classList.add("polished-rec-card", "compact-card");
       const oldTitle = text(card.querySelector("h3")) || `Option ${index + 1}`;
-      const explanation = text([...card.children].find((el) => el.tagName === "P" && !el.classList.contains("muted"))) || "This option is balanced for the rest of the day.";
+      const explanation = text([...card.children].find((el) => el.tagName === "P" && !el.classList.contains("muted"))) || "This is meant to be a realistic next meal, not just macro math.";
       const rows = [...card.querySelectorAll(".list-row")].map((row) => {
         const name = text(row.querySelector("strong"));
         const detail = text(row.querySelector("p"));
         const cal = text(row.querySelector(".cal"));
-        return { name, detail, cal, calories: firstNumber(cal) };
+        return { name, detail, cal, calories: firstNumber(cal), label: partLabel(name) };
       });
       const totalCalories = rows.reduce((sum, row) => sum + row.calories, 0);
       const form = card.querySelector("form");
-      const label = index === 0 ? "Best pick" : `Option ${index + 1}`;
-      const ingredients = rows.map((row) => `<div class="simple-ingredient"><div><strong>${row.name}</strong><p class="muted">${row.detail}</p></div><span>${row.cal || ""}</span></div>`).join("");
-      const cloneForm = form ? form.outerHTML.replace("Log this meal", index === 0 ? "Log best pick" : "Log this meal") : "";
+      const label = index === 0 ? "Best realistic pick" : `Option ${index + 1}`;
+      const parts = rows.map((row) => `<div class="meal-part"><div><div class="meal-part-label">${row.label}</div><strong>${row.name}</strong><p class="muted">${row.detail}</p></div><span>${row.cal || ""}</span></div>`).join("");
+      const cloneForm = form ? form.outerHTML.replace("Log this meal", index === 0 ? "Log this meal" : "Log option") : "";
       const polished = document.createElement("div");
       polished.className = "meal-suggestion-top";
       polished.innerHTML = `
         <span class="meal-suggestion-label">${label}</span>
         <h2>${oldTitle}</h2>
-        <div class="meal-summary-row"><span>${Math.round(totalCalories)} cal</span><span>${rows.length} item${rows.length === 1 ? "" : "s"}</span></div>
+        <div class="meal-summary-row"><span>${Math.round(totalCalories)} cal</span><span>${rows.length} part${rows.length === 1 ? "" : "s"}</span></div>
         <p class="why-this-works">${explanation}</p>
-        <div class="simple-ingredients">${ingredients}</div>
-        <div class="rec-actions">${cloneForm}<div class="secondary-note">Not feeling this one? Scroll for another option.</div></div>
+        <div class="meal-build">${parts}</div>
+        <div class="rec-actions">${cloneForm}<div class="secondary-note">These should be normal food pairings. If one looks weird, do not log it.</div></div>
       `;
       card.prepend(polished);
     });
