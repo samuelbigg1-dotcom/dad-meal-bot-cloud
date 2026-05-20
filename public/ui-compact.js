@@ -129,27 +129,70 @@
     return action;
   }
 
-  function macroStatus(label, percent) {
-    if (label === "Protein") return percent >= 95 ? "Protein met" : percent >= 75 ? "Protein close" : "Protein low";
-    if (label === "Sugar") return percent >= 105 ? "Sugar high" : percent >= 85 ? "Watch sugar" : "Sugar okay";
-    if (label === "Calories") return percent >= 105 ? "Calories over" : percent >= 90 ? "Calories near" : "Calories left";
-    if (label === "Fiber") return percent >= 90 ? "Fiber met" : percent >= 60 ? "Fiber okay" : "Fiber low";
-    return percent >= 105 ? `${label} high` : percent >= 90 ? `${label} near` : `${label} left`;
+  function readMacroCards() {
+    return [...document.querySelectorAll(".macro-card")].map((card) => {
+      const label = card.querySelector(".macro-head span")?.textContent?.trim() || "";
+      const percent = Number((card.querySelector(".macro-head strong")?.textContent || "0").match(/\d+/)?.[0] || 0);
+      const firstLine = card.querySelector(".macro-values span:first-child")?.textContent || "";
+      const secondLine = card.querySelector(".macro-values span:last-child")?.textContent || "";
+      const values = (firstLine.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+      return { label, percent, current: values[0] || 0, goal: values[1] || 0, detail: secondLine };
+    }).filter((m) => m.label);
+  }
+
+  function macro(macros, name) { return macros.find((m) => m.label === name); }
+  function remaining(m) { return Math.max(0, Number(m?.goal || 0) - Number(m?.current || 0)); }
+
+  function buildNextMove(macros) {
+    const calories = macro(macros, "Calories");
+    const protein = macro(macros, "Protein");
+    const sugar = macro(macros, "Sugar");
+    const fiber = macro(macros, "Fiber");
+    const calLeft = Math.round(remaining(calories));
+    const proteinLeft = Math.round(remaining(protein));
+    const fiberLeft = Math.round(remaining(fiber));
+
+    if (protein && protein.percent < 80) {
+      return {
+        title: "Next move",
+        badge: "Protein first",
+        body: `${calLeft} calories left today. Protein is still low${proteinLeft ? ` — about ${proteinLeft}g left` : ""}.${fiber && fiber.percent < 70 ? ` Fiber is low too, about ${fiberLeft}g left.` : ""}`,
+        cta: "Meals can suggest a simple high-protein option from available foods."
+      };
+    }
+    if (sugar && sugar.percent >= 90) {
+      return {
+        title: "Next move",
+        badge: sugar.percent >= 105 ? "Sugar high" : "Watch sugar",
+        body: `${calLeft} calories left today. Sugar is already ${sugar.percent >= 105 ? "over target" : "getting close"}, so the next meal should be lower sugar.`,
+        cta: "Aim for protein and fiber instead of another sweet snack."
+      };
+    }
+    if (calories && calories.percent >= 95) {
+      return {
+        title: "Next move",
+        badge: "Keep it light",
+        body: `Calories are almost used up for today. Protein-focused and smaller is the move now.`,
+        cta: "Use Meals only if another meal is actually needed."
+      };
+    }
+    return {
+      title: "Next move",
+      badge: "Balanced option",
+      body: `${calLeft} calories left today. Nothing looks urgent, so keep the next meal balanced.`,
+      cta: "Meals can pick from what is marked available."
+    };
   }
 
   function addTodayStatus() {
     const hero = document.querySelector(".dashboard-hero");
     if (!hero || document.querySelector(".today-status-card")) return;
-    const cards = [...document.querySelectorAll(".macro-card")];
-    if (!cards.length) return;
-    const statuses = cards.map((card) => {
-      const label = card.querySelector(".macro-head span")?.textContent?.trim() || "";
-      const pct = Number((card.querySelector(".macro-head strong")?.textContent || "0").replace(/\D/g, ""));
-      return { label, pct, text: macroStatus(label, pct) };
-    }).filter((s) => ["Calories", "Protein", "Sugar", "Fiber"].includes(s.label));
+    const macros = readMacroCards();
+    if (!macros.length) return;
+    const next = buildNextMove(macros);
     const card = document.createElement("section");
-    card.className = "card compact-card today-status-card";
-    card.innerHTML = `<div class="section-head compact-head"><h2>Day status</h2><span>Live</span></div><div class="status-chip-row">${statuses.map((s) => `<span class="status-chip ${s.pct >= 105 ? "warn" : s.pct >= 90 ? "near" : "ok"}">${s.text}</span>`).join("")}</div><p class="muted">Use this as the home base: log, scan, then adjust the next meal based on what is low or high.</p>`;
+    card.className = "card compact-card today-status-card next-move-card";
+    card.innerHTML = `<div class="section-head compact-head"><h2>${next.title}</h2><span>${next.badge}</span></div><p>${next.body}</p><p class="muted">${next.cta}</p><a class="button primary wide" href="/recommendations">Open Meals</a>`;
     hero.insertAdjacentElement("afterend", card);
   }
 
@@ -158,7 +201,7 @@
     if (!hero || document.querySelector(".quick-actions-card")) return;
     hero.classList.add("dashboard-hero", "compact-card");
     const copy = hero.querySelector("p");
-    if (copy) copy.textContent = "Home base for today: check status, log food, then decide the next move.";
+    if (copy) copy.textContent = "Check the day, log food, and pick the next move.";
     const originalActions = hero.querySelector(".action-row");
     if (originalActions) originalActions.remove();
     addTodayStatus();
@@ -170,10 +213,6 @@
     grid.append(makeUnifiedScanAction(), makeAction({ href: "/log", label: "Log meal", detail: "Type meal", icon: "+" }), makeAction({ href: "/foods", label: "Foods", detail: "Saved items", icon: "⌕" }), makeAction({ href: "/history", label: "Progress", detail: "History", icon: "↗" }));
     quick.appendChild(grid);
     document.querySelector(".today-status-card")?.insertAdjacentElement("afterend", quick) || hero.insertAdjacentElement("afterend", quick);
-    const suggested = document.createElement("section");
-    suggested.className = "card compact-card suggested-card";
-    suggested.innerHTML = `<div class="section-head compact-head"><h2>Suggested next</h2><span>Meals</span></div><p>Use meal ideas when protein is low, sugar is high, or calories need balancing.</p><a class="button primary wide" href="/recommendations">View meal ideas</a>`;
-    quick.insertAdjacentElement("afterend", suggested);
   }
 
   function addFoodSearch(savedCard) {
@@ -314,26 +353,6 @@
 
   function compactHistory() {
     document.querySelectorAll("section.card").forEach((card) => card.classList.add("compact-card"));
-    const dailyCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.includes("Daily totals"));
-    if (!dailyCard) return;
-    dailyCard.querySelectorAll(".list-row").forEach((row) => {
-      if (row.tagName.toLowerCase() === "a") return;
-      const date = row.querySelector("strong")?.textContent?.trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return;
-      const link = document.createElement("a");
-      link.className = row.className + " history-day-link";
-      link.href = `/history?date=${encodeURIComponent(date)}`;
-      link.innerHTML = row.innerHTML;
-      row.replaceWith(link);
-    });
-    const params = new URLSearchParams(window.location.search);
-    const selected = params.get("date");
-    if (selected && !document.querySelector(".selected-day-card")) {
-      const card = document.createElement("section");
-      card.className = "card compact-card selected-day-card";
-      card.innerHTML = `<div class="section-head compact-head"><h2>${selected}</h2><span>Day review</span></div><p class="muted">Day links are ready. The next backend pass can expand this into full meal-item detail for the selected day.</p><a class="button" href="/history">Back to 7 days</a>`;
-      dailyCard.insertAdjacentElement("beforebegin", card);
-    }
   }
 
   function compactConfirm() {
