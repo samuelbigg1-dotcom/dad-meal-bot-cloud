@@ -4,6 +4,18 @@ function namesForFood(food) {
   return [food.name, ...(food.aliases || [])].map(normalizeText).filter(Boolean);
 }
 
+function clampConfidence(value, fallback = 65) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(10, Math.min(100, Math.round(n)));
+}
+
+function confidenceFallback(label) {
+  if (label === "high") return 92;
+  if (label === "low") return 45;
+  return 65;
+}
+
 export function findFoodMatch(parsedItem, foods) {
   const itemName = normalizeText(parsedItem.food_name);
   const compoundWords = new Set(["muffin", "muffins", "bread", "cake", "cookie", "cookies", "bar", "bars", "pie", "pancake", "pancakes", "waffle", "waffles", "cereal", "granola"]);
@@ -42,24 +54,28 @@ export function scaleKnownFood(parsedItem, matchedFood) {
 
   let factor = 1;
   let note = "";
+  let confidencePercent = 94;
 
   if (parsedUnit === baseUnit && baseQty !== 0) {
     factor = qty / baseQty;
     note = `Matched known food: ${matchedFood.name}.`;
   } else {
     factor = 1;
+    confidencePercent = 78;
     note = `Matched known food: ${matchedFood.name}. Used base portion because unit did not match: "${parsedItem.unit}" vs "${matchedFood.base_unit}".`;
   }
 
   return scaledFoodItem(matchedFood, factor, {
     quantity: qty,
     unit: parsedItem.unit || matchedFood.base_unit,
-    confidence: "high",
+    confidence: confidencePercent >= 85 ? "high" : "medium",
+    confidence_percent: confidencePercent,
     note
   });
 }
 
 export function scaledFoodItem(food, factor = 1, extra = {}) {
+  const confidence = extra.confidence || "high";
   return {
     food_name: food.name,
     matched_food_id: food.id || null,
@@ -71,12 +87,14 @@ export function scaledFoodItem(food, factor = 1, extra = {}) {
     fat_g: round1(Number(food.fat_g) * factor),
     sugar_g: round1(Number(food.sugar_g) * factor),
     fiber_g: round1(Number(food.fiber_g) * factor),
-    confidence: extra.confidence || "high",
+    confidence,
+    confidence_percent: clampConfidence(extra.confidence_percent ?? extra.confidencePercent, confidenceFallback(confidence)),
     note: extra.note || ""
   };
 }
 
 export function useAiEstimatedFood(parsedItem) {
+  const confidence = parsedItem.confidence || "low";
   return {
     food_name: parsedItem.food_name,
     matched_food_id: null,
@@ -88,7 +106,8 @@ export function useAiEstimatedFood(parsedItem) {
     fat_g: round1(parsedItem.fat_g || 0),
     sugar_g: round1(parsedItem.sugar_g || 0),
     fiber_g: round1(parsedItem.fiber_g || 0),
-    confidence: parsedItem.confidence || "low",
+    confidence,
+    confidence_percent: clampConfidence(parsedItem.confidence_percent ?? parsedItem.confidencePercent, confidenceFallback(confidence)),
     note: parsedItem.note || "AI-estimated food. Add it under Foods for better tracking next time."
   };
 }
