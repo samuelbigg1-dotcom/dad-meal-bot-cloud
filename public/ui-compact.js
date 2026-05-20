@@ -17,7 +17,6 @@
     const form = document.createElement("form");
     form.method = "POST";
     form.action = action;
-
     for (const [name, value] of Object.entries(fields)) {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -25,7 +24,6 @@
       input.value = value;
       form.appendChild(input);
     }
-
     document.body.appendChild(form);
     form.submit();
   }
@@ -37,7 +35,6 @@
 
   function getUnifiedScanInput() {
     if (unifiedScanInput) return unifiedScanInput;
-
     unifiedScanInput = document.createElement("input");
     unifiedScanInput.type = "file";
     unifiedScanInput.accept = "image/*";
@@ -59,30 +56,10 @@
     const fat = Number(food.fat || 0);
     const sugar = Number(food.sugar || 0);
     const fiber = Number(food.fiber || 0);
-
     return {
       parsedMeal: { meal_type: "snack", items: [] },
-      items: [{
-        food_name: name,
-        quantity: Number(food.baseQty || 1),
-        unit: food.baseUnit || "serving",
-        calories,
-        protein_g: protein,
-        carbs_g: carbs,
-        fat_g: fat,
-        sugar_g: sugar,
-        fiber_g: fiber,
-        confidence: "high",
-        note: "Logged from food scan"
-      }],
-      mealTotals: {
-        calories,
-        protein_g: protein,
-        carbs_g: carbs,
-        fat_g: fat,
-        sugar_g: sugar,
-        fiber_g: fiber
-      },
+      items: [{ food_name: name, quantity: Number(food.baseQty || 1), unit: food.baseUnit || "serving", calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, fiber_g: fiber, confidence: "high", note: "Logged from food scan" }],
+      mealTotals: { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, fiber_g: fiber },
       rawMessage: `Scanned food: ${name}`,
       mealDate: todayVancouver()
     };
@@ -91,7 +68,6 @@
   function readConfirmFood(form) {
     const hiddenFoodInput = form.querySelector("input[name='food']");
     if (!hiddenFoodInput || typeof decodeFoodPayload !== "function") return null;
-
     const food = decodeFoodPayload(hiddenFoodInput.value);
     const customName = form.querySelector("input[name='customName']")?.value?.trim();
     return { ...food, name: customName || food.name || "Scanned food" };
@@ -101,22 +77,14 @@
     const form = event.currentTarget;
     const mode = form.querySelector("input[name='saveMode']:checked")?.value || "fridge";
     if (mode === "fridge") return;
-
     event.preventDefault();
     const food = readConfirmFood(form);
     if (!food || typeof encodeFoodPayload !== "function") return form.submit();
-
     const payload = encodeFoodPayload(foodToLogPayload(food));
-
     if (mode === "both") {
       const formData = new FormData(form);
-      await fetch(form.action, {
-        method: "POST",
-        body: new URLSearchParams(formData),
-        credentials: "same-origin"
-      });
+      await fetch(form.action, { method: "POST", body: new URLSearchParams(formData), credentials: "same-origin" });
     }
-
     submitHiddenForm("/log/confirm", { payload });
   }
 
@@ -124,41 +92,23 @@
     if (!file) return;
     if (typeof fileToCompressedDataUrl !== "function") throw new Error("Photo tools are still loading. Try once more.");
     if (typeof encodeFoodPayload !== "function") throw new Error("Food tools are still loading. Try once more.");
-
     setScanStatus(action, "Reading photo...");
     const imageDataUrl = await fileToCompressedDataUrl(file);
-
     setScanStatus(action, "Checking for barcode...");
     try {
-      const barcodeResponse = await fetch("/foods/barcode-image-scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl })
-      });
+      const barcodeResponse = await fetch("/foods/barcode-image-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
       const barcodeData = await barcodeResponse.json().catch(() => ({}));
       const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
-
       if (barcodeResponse.ok && barcode) {
         setScanStatus(action, `Barcode found: ${barcode}`);
         submitHiddenForm("/foods/barcode", { barcode });
         return;
       }
-    } catch (error) {
-      // If barcode reading fails, try the same photo as a nutrition label.
-    }
-
+    } catch (error) {}
     setScanStatus(action, "Reading Nutrition Facts...");
-    const labelResponse = await fetch("/foods/label-scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageDataUrl })
-    });
+    const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
     const labelData = await labelResponse.json().catch(() => ({}));
-
-    if (!labelResponse.ok || !labelData.food) {
-      throw new Error(labelData.error || "Could not read this as a barcode or Nutrition Facts label.");
-    }
-
+    if (!labelResponse.ok || !labelData.food) throw new Error(labelData.error || "Could not read this as a barcode or Nutrition Facts label.");
     setScanStatus(action, "Opening confirmation...");
     submitHiddenForm("/foods/confirm-scanned-label", { food: encodeFoodPayload(labelData.food) });
   }
@@ -166,21 +116,14 @@
   function openUnifiedScan(action) {
     const ok = window.confirm("Take a clear photo of either a barcode or the Nutrition Facts label.");
     if (!ok) return;
-
     const input = getUnifiedScanInput();
     input.value = "";
     input.onchange = async () => {
       const file = input.files && input.files[0];
       if (!file) return;
-
       action.disabled = true;
-      try {
-        await handleUnifiedFoodPhoto(file, action);
-      } catch (error) {
-        setScanStatus(action, error.message || "Scan failed. Try again.");
-        action.disabled = false;
-        input.value = "";
-      }
+      try { await handleUnifiedFoodPhoto(file, action); }
+      catch (error) { setScanStatus(action, error.message || "Scan failed. Try again."); action.disabled = false; input.value = ""; }
     };
     input.click();
   }
@@ -194,54 +137,63 @@
     return action;
   }
 
+  function macroStatus(label, percent) {
+    if (label === "Protein") return percent >= 95 ? "Protein met" : percent >= 75 ? "Protein close" : "Protein low";
+    if (label === "Sugar") return percent >= 105 ? "Sugar high" : percent >= 85 ? "Watch sugar" : "Sugar okay";
+    if (label === "Calories") return percent >= 105 ? "Calories over" : percent >= 90 ? "Calories near" : "Calories left";
+    return percent >= 105 ? `${label} high` : percent >= 90 ? `${label} near` : `${label} left`;
+  }
+
+  function addTodayStatus() {
+    const hero = document.querySelector(".dashboard-hero");
+    if (!hero || document.querySelector(".today-status-card")) return;
+    const cards = [...document.querySelectorAll(".macro-card")];
+    if (!cards.length) return;
+    const statuses = cards.map((card) => {
+      const label = card.querySelector(".macro-head span")?.textContent?.trim() || "";
+      const pct = Number((card.querySelector(".macro-head strong")?.textContent || "0").replace(/\D/g, ""));
+      return { label, pct, text: macroStatus(label, pct) };
+    }).filter((s) => ["Calories", "Protein", "Sugar", "Fiber"].includes(s.label));
+    const card = document.createElement("section");
+    card.className = "card compact-card today-status-card";
+    card.innerHTML = `<div class="section-head compact-head"><h2>Day status</h2><span>Live</span></div><div class="status-chip-row">${statuses.map((s) => `<span class="status-chip ${s.pct >= 105 ? "warn" : s.pct >= 90 ? "near" : "ok"}">${s.text}</span>`).join("")}</div><p class="muted">Use this as the home base: log, scan, then adjust the next meal based on what is low or high.</p>`;
+    hero.insertAdjacentElement("afterend", card);
+  }
+
   function compactDashboard() {
     const hero = document.querySelector(".card.hero");
     if (!hero || document.querySelector(".quick-actions-card")) return;
-
     hero.classList.add("dashboard-hero", "compact-card");
     const copy = hero.querySelector("p");
-    if (copy) copy.textContent = "Your day at a glance.";
-
+    if (copy) copy.textContent = "Home base for today: check status, log food, then decide the next move.";
     const originalActions = hero.querySelector(".action-row");
     if (originalActions) originalActions.remove();
-
+    addTodayStatus();
     const quick = document.createElement("section");
     quick.className = "card quick-actions-card compact-card";
     quick.innerHTML = `<div class="section-head compact-head"><h2>Quick actions</h2><span>Fast access</span></div>`;
-
     const grid = document.createElement("div");
     grid.className = "quick-action-grid";
-    grid.append(
-      makeUnifiedScanAction(),
-      makeAction({ href: "/log", label: "Log meal", detail: "Type meal", icon: "+" }),
-      makeAction({ href: "/foods", label: "Foods", detail: "Saved items", icon: "⌕" }),
-      makeAction({ href: "/history", label: "Progress", detail: "History", icon: "↗" })
-    );
+    grid.append(makeUnifiedScanAction(), makeAction({ href: "/log", label: "Log meal", detail: "Type meal", icon: "+" }), makeAction({ href: "/foods", label: "Foods", detail: "Saved items", icon: "⌕" }), makeAction({ href: "/history", label: "Progress", detail: "History", icon: "↗" }));
     quick.appendChild(grid);
-    hero.insertAdjacentElement("afterend", quick);
-
+    document.querySelector(".today-status-card")?.insertAdjacentElement("afterend", quick) || hero.insertAdjacentElement("afterend", quick);
     const suggested = document.createElement("section");
     suggested.className = "card compact-card suggested-card";
-    suggested.innerHTML = `<div class="section-head compact-head"><h2>Suggested next</h2><span>Meals</span></div><p>Get a simple meal idea based on today and available foods.</p><a class="button primary wide" href="/recommendations">View meal ideas</a>`;
+    suggested.innerHTML = `<div class="section-head compact-head"><h2>Suggested next</h2><span>Meals</span></div><p>Use meal ideas when protein is low, sugar is high, or calories need balancing.</p><a class="button primary wide" href="/recommendations">View meal ideas</a>`;
     quick.insertAdjacentElement("afterend", suggested);
   }
 
   function addFoodSearch(savedCard) {
     if (!savedCard || savedCard.querySelector(".food-search")) return;
-
     const input = document.createElement("input");
     input.className = "input food-search";
     input.type = "search";
     input.placeholder = "Search saved foods";
-
     const list = savedCard.querySelector(".food-list");
     savedCard.insertBefore(input, list);
-
     input.addEventListener("input", () => {
       const q = input.value.trim().toLowerCase();
-      for (const row of savedCard.querySelectorAll(".food-row")) {
-        row.hidden = q && !row.textContent.toLowerCase().includes(q);
-      }
+      for (const row of savedCard.querySelectorAll(".food-row")) row.hidden = q && !row.textContent.toLowerCase().includes(q);
     });
   }
 
@@ -251,7 +203,6 @@
       if (row.querySelector(".food-action-menu")) continue;
       const actions = row.querySelector(".food-actions");
       if (!actions) continue;
-
       const details = document.createElement("details");
       details.className = "food-action-menu";
       details.innerHTML = `<summary>⋯</summary>`;
@@ -263,90 +214,83 @@
   function compactFoods() {
     const content = document.querySelector(".content");
     if (!content || document.querySelector(".foods-primary-scan")) return;
-
     const hero = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.includes("Available foods"));
     if (hero) {
       hero.classList.add("compact-card", "foods-hero");
-      const h2 = hero.querySelector("h2");
-      const p = hero.querySelector("p");
+      const h2 = hero.querySelector("h2"); const p = hero.querySelector("p");
       if (h2) h2.textContent = "Foods";
       if (p) p.textContent = "Scan, save, search, or add custom foods.";
     }
-
     const labelCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("#labelScanForm"));
     const barcodeCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("#barcodeImageScanForm"));
     const manualCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.includes("Add food manually"));
     const savedCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector(".food-list"));
-
     const primaryScan = document.createElement("section");
     primaryScan.className = "card compact-card foods-primary-scan";
     primaryScan.innerHTML = `<div class="section-head compact-head"><h2>Add food</h2><span>Fast</span></div>`;
-    const actions = document.createElement("div");
-    actions.className = "quick-action-grid";
+    const actions = document.createElement("div"); actions.className = "quick-action-grid";
     actions.appendChild(makeUnifiedScanAction({ big: true }));
     const custom = makeAction({ href: "#", label: "Add custom food", detail: "Manual nutrition", icon: "+" });
-    custom.addEventListener("click", (event) => {
-      event.preventDefault();
-      const toggle = document.getElementById("toggleManualFoodForm");
-      toggle?.click();
-      manualCard?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    actions.appendChild(custom);
-    primaryScan.appendChild(actions);
+    custom.addEventListener("click", (event) => { event.preventDefault(); document.getElementById("toggleManualFoodForm")?.click(); manualCard?.scrollIntoView({ behavior: "smooth", block: "start" }); });
+    actions.appendChild(custom); primaryScan.appendChild(actions);
     (hero || content.firstElementChild || content).insertAdjacentElement("afterend", primaryScan);
-
     if (labelCard && barcodeCard) {
-      labelCard.classList.add("scan-option-card", "compact-card");
-      barcodeCard.classList.add("scan-option-card", "compact-card");
-
-      const labelH = labelCard.querySelector("h2");
-      const labelP = labelCard.querySelector("p.muted");
-      if (labelH) labelH.textContent = "Nutrition Facts only";
-      if (labelP) labelP.textContent = "Fallback label scanner.";
-
-      const barcodeH = barcodeCard.querySelector("h2");
-      const barcodeP = barcodeCard.querySelector("p.muted");
-      if (barcodeH) barcodeH.textContent = "Barcode only";
-      if (barcodeP) barcodeP.textContent = "Fallback barcode scanner.";
-
-      const details = document.createElement("details");
-      details.className = "card compact-card fallback-scans";
-      details.innerHTML = `<summary>Trouble scanning?</summary>`;
-      const grid = document.createElement("div");
-      grid.className = "foods-quick-grid";
-      details.appendChild(grid);
-      primaryScan.insertAdjacentElement("afterend", details);
-      grid.appendChild(labelCard);
-      grid.appendChild(barcodeCard);
+      labelCard.classList.add("scan-option-card", "compact-card"); barcodeCard.classList.add("scan-option-card", "compact-card");
+      const labelH = labelCard.querySelector("h2"); const labelP = labelCard.querySelector("p.muted");
+      if (labelH) labelH.textContent = "Nutrition Facts only"; if (labelP) labelP.textContent = "Fallback label scanner.";
+      const barcodeH = barcodeCard.querySelector("h2"); const barcodeP = barcodeCard.querySelector("p.muted");
+      if (barcodeH) barcodeH.textContent = "Barcode only"; if (barcodeP) barcodeP.textContent = "Fallback barcode scanner.";
+      const details = document.createElement("details"); details.className = "card compact-card fallback-scans"; details.innerHTML = `<summary>Trouble scanning?</summary>`;
+      const grid = document.createElement("div"); grid.className = "foods-quick-grid"; details.appendChild(grid); primaryScan.insertAdjacentElement("afterend", details); grid.appendChild(labelCard); grid.appendChild(barcodeCard);
     }
-
-    if (manualCard) {
-      manualCard.classList.add("compact-card", "manual-card", "custom-food-card");
-      const h2 = manualCard.querySelector("h2");
-      if (h2) h2.textContent = "Custom food";
-    }
-
-    if (savedCard) {
-      savedCard.classList.add("compact-card", "saved-foods-card");
-      const h2 = savedCard.querySelector("h2");
-      if (h2) h2.textContent = "Saved foods";
-      addFoodSearch(savedCard);
-      compactFoodActions(savedCard);
-    }
+    if (manualCard) { manualCard.classList.add("compact-card", "manual-card", "custom-food-card"); const h2 = manualCard.querySelector("h2"); if (h2) h2.textContent = "Custom food"; }
+    if (savedCard) { savedCard.classList.add("compact-card", "saved-foods-card"); const h2 = savedCard.querySelector("h2"); if (h2) h2.textContent = "Saved foods"; addFoodSearch(savedCard); compactFoodActions(savedCard); }
   }
 
   function compactLog() {
-    const card = document.querySelector(".card.hero");
-    if (!card) return;
+    const card = document.querySelector(".card.hero"); if (!card) return;
     card.classList.add("compact-card", "log-card");
-    const h2 = card.querySelector("h2");
-    const p = card.querySelector("p");
-    const textarea = card.querySelector("textarea");
-    if (h2) h2.textContent = "Log a meal";
-    if (p) p.textContent = "Type it like a message.";
-    if (textarea) {
-      textarea.rows = 4;
-      textarea.placeholder = "I had 3 eggs, 5 roma tomatoes, 2 slices toast...";
+    const h2 = card.querySelector("h2"); const p = card.querySelector("p"); const textarea = card.querySelector("textarea");
+    if (h2) h2.textContent = "Log a meal"; if (p) p.textContent = "Type it like a message.";
+    if (textarea) { textarea.rows = 4; textarea.placeholder = "I had 3 eggs, 5 roma tomatoes, 2 slices toast..."; }
+  }
+
+  function confidenceScore(row) {
+    const raw = row.textContent.toLowerCase();
+    let score = raw.includes("high confidence") ? 92 : raw.includes("medium confidence") ? 65 : 45;
+    if (/starbucks|tim hortons|mcdonald|restaurant|burger king|wendy|subway|a&w|taco bell|kfc/.test(raw) && !raw.includes("high confidence")) score = Math.min(score, 55);
+    return score;
+  }
+
+  function addMealConfidenceTools() {
+    const form = document.querySelector("form[action='/log/confirm']");
+    if (!form || document.querySelector(".confidence-warning")) return;
+    const rows = [...document.querySelectorAll(".confirm-card .list-row, .page-confirm-meal .list-row")];
+    let lowest = 100;
+    for (const row of rows) {
+      const score = confidenceScore(row);
+      lowest = Math.min(lowest, score);
+      row.classList.add("confidence-row", score < 60 ? "low-confidence" : score < 80 ? "medium-confidence" : "high-confidence");
+      const info = row.querySelector("p");
+      if (info && !info.querySelector(".confidence-score")) info.insertAdjacentHTML("beforeend", ` <span class="confidence-score">${score}% confidence</span>`);
+      if (score < 60 && !row.querySelector(".double-check-link")) {
+        const name = row.querySelector("strong")?.textContent?.trim() || "food";
+        const link = document.createElement("a");
+        link.className = "double-check-link";
+        link.href = `https://www.google.com/search?q=${encodeURIComponent(name + " calories nutrition")}`;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Double check";
+        row.appendChild(link);
+      }
+    }
+    if (lowest < 60) {
+      const warning = document.createElement("div");
+      warning.className = "confidence-warning";
+      warning.innerHTML = `<strong>Double check recommended</strong><p>One or more items are below 60% confidence. Restaurant/branded foods can be wrong if the exact item or size is unclear.</p>`;
+      form.insertAdjacentElement("beforebegin", warning);
+      const saveButton = form.querySelector("button[type='submit']");
+      if (saveButton) saveButton.textContent = "Save anyway";
     }
   }
 
@@ -355,31 +299,26 @@
     const mealConfirm = document.querySelector("form[action='/log/confirm']");
     if (confirmForm) {
       document.body.classList.add("page-confirm-food");
-      const hero = document.querySelector(".card.hero");
-      if (hero) hero.classList.add("compact-card", "confirm-hero");
+      const hero = document.querySelector(".card.hero"); if (hero) hero.classList.add("compact-card", "confirm-hero");
       confirmForm.closest(".card")?.classList.add("compact-card", "confirm-card");
-
       if (!confirmForm.querySelector(".scan-save-mode")) {
-        const mode = document.createElement("div");
-        mode.className = "scan-save-mode";
+        const mode = document.createElement("div"); mode.className = "scan-save-mode";
         mode.innerHTML = `<label class="field-label">Use this scan as</label><div class="segmented three"><label><input type="radio" name="saveMode" value="fridge" checked><span>Add to fridge</span></label><label><input type="radio" name="saveMode" value="log"><span>I ate this today</span></label><label><input type="radio" name="saveMode" value="both"><span>Both</span></label></div>`;
-        const actions = confirmForm.querySelector(".action-row");
-        confirmForm.insertBefore(mode, actions || null);
-        const primaryButton = confirmForm.querySelector("button[type='submit']");
-        if (primaryButton) primaryButton.textContent = "Save";
+        const actions = confirmForm.querySelector(".action-row"); confirmForm.insertBefore(mode, actions || null);
+        const primaryButton = confirmForm.querySelector("button[type='submit']"); if (primaryButton) primaryButton.textContent = "Save";
       }
       confirmForm.addEventListener("submit", handleConfirmSaveMode);
     }
     if (mealConfirm) {
       document.body.classList.add("page-confirm-meal");
       mealConfirm.closest(".card")?.classList.add("compact-card", "confirm-card");
+      addMealConfidenceTools();
     }
   }
 
   function run() {
     const title = textOf("h1").toLowerCase();
     document.body.classList.add("compact-ui");
-
     if (title === "today") compactDashboard();
     if (title.includes("foods")) compactFoods();
     if (title.includes("log meal")) compactLog();
