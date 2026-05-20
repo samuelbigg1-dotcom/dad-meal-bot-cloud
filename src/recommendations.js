@@ -6,6 +6,7 @@ const MACROS = ["calories", "protein_g", "carbs_g", "fat_g", "sugar_g", "fiber_g
 function toNum(v) { return Number(v || 0); }
 function nameOf(food) { return String(food.food_name || food.name || "").toLowerCase(); }
 function hasAny(value, words) { return words.some((word) => value.includes(word)); }
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 
 export function remainingMacros(totals, goals) {
   const out = {};
@@ -15,6 +16,20 @@ export function remainingMacros(totals, goals) {
 
 function pctAfter(totals, candidate, goals, key) {
   return (toNum(totals[key]) + toNum(candidate[key])) / Math.max(1, toNum(goals[key]));
+}
+
+function targetMealCalories(totals, goals) {
+  const caloriesLeft = Math.max(0, toNum(goals.calories) - toNum(totals.calories));
+  if (caloriesLeft >= 900) return clamp(caloriesLeft * 0.72, 650, 950);
+  if (caloriesLeft >= 550) return clamp(caloriesLeft * 0.82, 450, 750);
+  return clamp(caloriesLeft, 250, 550);
+}
+
+function targetMealProtein(totals, goals) {
+  const proteinLeft = Math.max(0, toNum(goals.protein_g) - toNum(totals.protein_g));
+  if (proteinLeft >= 45) return 45;
+  if (proteinLeft >= 25) return proteinLeft;
+  return Math.min(30, Math.max(20, proteinLeft));
 }
 
 function inferType(food) {
@@ -82,10 +97,10 @@ function portionFactors(food) {
   const unit = String(food.base_unit || "").toLowerCase();
   const type = inferType(food);
   const n = nameOf(food);
-  if (type === "protein" && unit === "oz") return [4, 6, 8];
-  if (type === "protein" && unit === "egg") return [2, 3];
-  if (type === "protein" && hasAny(n, ["yogurt", "cottage cheese"])) return [1];
-  if (type === "carb" && ["cup", "medium", "slice"].includes(unit)) return [0.5, 1, 1.5];
+  if (type === "protein" && unit === "oz") return [4, 6, 8, 10];
+  if (type === "protein" && unit === "egg") return [2, 3, 4];
+  if (type === "protein" && hasAny(n, ["yogurt", "cottage cheese"])) return [1, 1.5, 2];
+  if (type === "carb" && ["cup", "medium", "slice"].includes(unit)) return [0.5, 1, 1.5, 2];
   if (type === "vegetable") return [1, 2];
   if (type === "fat") return [0.5, 1];
   if (type === "fruit") return [0.5, 1];
@@ -113,11 +128,11 @@ function titleFor(items) {
   const fat = items.find((i) => inferType(i) === "fat");
   if (protein && hasAny(nameOf(protein), ["yogurt", "cottage cheese"])) return `${protein.food_name} bowl`;
   if (protein && hasAny(nameOf(protein), ["egg", "eggs"])) return carb ? `Eggs with ${carb.food_name}` : "Egg plate";
-  if (protein && carb && veg) return `${protein.food_name} plate`;
+  if (protein && carb && veg) return `${protein.food_name} dinner plate`;
   if (protein && carb) return `${protein.food_name} with ${carb.food_name}`;
   if (protein && veg) return `${protein.food_name} with ${veg.food_name}`;
   if (fruit && fat && !protein) return `${fruit.food_name} with ${fat.food_name}`;
-  if (protein) return `${protein.food_name} snack`;
+  if (protein) return `${protein.food_name} protein option`;
   return names.join(" + ");
 }
 
@@ -138,33 +153,50 @@ function mealRealismScore(items) {
 
 function scoreCandidate({ totals, goals, candidate, items }) {
   let score = 700 + mealRealismScore(items);
-  if (candidate.calories < 250) score -= 60;
-  if (candidate.calories > 900) score -= 120;
-  const proteinLow = toNum(totals.protein_g) / Math.max(1, goals.protein_g) < 0.85;
+  const caloriesLeft = Math.max(0, toNum(goals.calories) - toNum(totals.calories));
+  const proteinLeft = Math.max(0, toNum(goals.protein_g) - toNum(totals.protein_g));
+  const fiberLeft = Math.max(0, toNum(goals.fiber_g) - toNum(totals.fiber_g));
+  const targetCalories = targetMealCalories(totals, goals);
+  const targetProtein = targetMealProtein(totals, goals);
+
+  const calorieDistance = Math.abs(toNum(candidate.calories) - targetCalories);
+  score -= calorieDistance * 0.55;
+  score += Math.min(240, toNum(candidate.protein_g) * 6);
+  score -= Math.abs(toNum(candidate.protein_g) - targetProtein) * 3.5;
+
+  if (caloriesLeft >= 900 && toNum(candidate.calories) < 500) score -= 220;
+  if (caloriesLeft >= 900 && toNum(candidate.calories) >= 650) score += 160;
+  if (proteinLeft >= 30 && toNum(candidate.protein_g) < proteinLeft * 0.8) score -= 180;
+  if (proteinLeft >= 25 && toNum(candidate.protein_g) >= proteinLeft * 0.9) score += 180;
+  if (fiberLeft >= 8 && toNum(candidate.fiber_g) >= 5) score += 70;
+
+  if (toNum(candidate.calories) < 250) score -= 160;
+  if (toNum(candidate.calories) > Math.max(1000, caloriesLeft * 1.08)) score -= 180;
+
   const sugarHigh = toNum(totals.sugar_g) / Math.max(1, goals.sugar_g) > 0.75;
   const fatHigh = toNum(totals.fat_g) / Math.max(1, goals.fat_g) > 0.75;
-  if (proteinLow) score += Math.min(180, candidate.protein_g * 5);
-  if (proteinLow && candidate.protein_g < 25) score -= 160;
   if (sugarHigh && candidate.sugar_g > 10) score -= 180;
   if (fatHigh && candidate.fat_g > 18) score -= 140;
+
   for (const key of MACROS) {
     const after = pctAfter(totals, candidate, goals, key);
-    if (["calories", "protein_g", "carbs_g"].includes(key) && after > 1.18) score -= 220 * (after - 1.18);
-    if (["sugar_g", "fat_g"].includes(key) && after > 1.05) score -= 280 * (after - 1.05);
+    if (["calories", "protein_g", "carbs_g"].includes(key) && after > 1.1) score -= 260 * (after - 1.1);
+    if (["sugar_g", "fat_g"].includes(key) && after > 1.03) score -= 300 * (after - 1.03);
   }
+
   return round1(score);
 }
 
 function reasonFor(totals, goals, candidate) {
-  const reasons = [];
-  const p = (key) => toNum(totals[key]) / Math.max(1, toNum(goals[key]));
-  if (p("protein_g") < 0.8) reasons.push("adds protein without making the meal weird");
-  if (p("calories") < 0.8) reasons.push("uses some of the calories left today");
-  if (p("fiber_g") < 0.8 && candidate.fiber_g >= 3) reasons.push("helps fiber a bit");
-  if (p("sugar_g") > 0.7) reasons.push("keeps sugar controlled");
-  if (p("fat_g") > 0.7) reasons.push("doesn’t push fat too hard");
-  if (!reasons.length) reasons.push("keeps the next meal balanced");
-  return `Picked because it ${reasons.join(", ")}.`;
+  const caloriesLeft = Math.max(0, toNum(goals.calories) - toNum(totals.calories));
+  const proteinLeft = Math.max(0, toNum(goals.protein_g) - toNum(totals.protein_g));
+  const fiberLeft = Math.max(0, toNum(goals.fiber_g) - toNum(totals.fiber_g));
+  const parts = [];
+  if (caloriesLeft >= 700) parts.push(`uses ${round0(candidate.calories)} of about ${round0(caloriesLeft)} calories left`);
+  if (proteinLeft > 0) parts.push(`covers ${round0(candidate.protein_g)}g of about ${round0(proteinLeft)}g protein left`);
+  if (fiberLeft > 0 && candidate.fiber_g >= 3) parts.push(`adds ${round0(candidate.fiber_g)}g fiber`);
+  if (!parts.length) parts.push("keeps the next meal close to today's targets");
+  return `Aimed at the remaining day: ${parts.join(", ")}.`;
 }
 
 function classifyFoods(foods) {
@@ -183,18 +215,16 @@ function pushIfRealistic(candidates, { totals, goals, items }) {
   for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (!compatible(items[i], items[j])) return;
   const totalsForMeal = sum(items);
   if (totalsForMeal.calories < 150) return;
-  if (totalsForMeal.calories > 1000) return;
+  if (totalsForMeal.calories > 1150) return;
   if (pctAfter(totals, totalsForMeal, goals, "sugar_g") > 1.2) return;
   if (pctAfter(totals, totalsForMeal, goals, "fat_g") > 1.25) return;
-  if (pctAfter(totals, totalsForMeal, goals, "calories") > 1.18) return;
+  if (pctAfter(totals, totalsForMeal, goals, "calories") > 1.12) return;
   const score = scoreCandidate({ totals, goals, candidate: totalsForMeal, items });
   if (score < 250) return;
   candidates.push({ title: titleFor(items), items, totals: totalsForMeal, score, reason: reasonFor(totals, goals, totalsForMeal) });
 }
 
 function validateWithOpenAISync(candidates) {
-  // Disabled for deployment safety. The next version should run OpenAI validation
-  // in the async recommendations route, not inside this synchronous generator.
   return candidates;
 }
 
@@ -207,22 +237,22 @@ export function generateRecommendations({ totals, goals, foods, count = 5 }) {
   const fats = groups.fat;
   const candidates = [];
 
-  for (const p of proteins.slice(0, 14)) {
+  for (const p of proteins.slice(0, 16)) {
     for (const pf of portionFactors(p)) {
       const pItem = candidatePart(p, pf);
       pushIfRealistic(candidates, { totals, goals, items: [pItem] });
-      for (const c of carbs.slice(0, 14)) {
+      for (const c of carbs.slice(0, 16)) {
         if (!compatible(p, c)) continue;
         for (const cf of portionFactors(c)) {
           const cItem = candidatePart(c, cf);
           pushIfRealistic(candidates, { totals, goals, items: [pItem, cItem] });
-          for (const v of vegetables.slice(0, 10)) {
+          for (const v of vegetables.slice(0, 12)) {
             if (!compatible(p, v) || !compatible(c, v)) continue;
             for (const vf of portionFactors(v).slice(0, 2)) pushIfRealistic(candidates, { totals, goals, items: [pItem, cItem, candidatePart(v, vf)] });
           }
         }
       }
-      for (const v of vegetables.slice(0, 10)) {
+      for (const v of vegetables.slice(0, 12)) {
         if (!compatible(p, v)) continue;
         for (const vf of portionFactors(v).slice(0, 2)) pushIfRealistic(candidates, { totals, goals, items: [pItem, candidatePart(v, vf)] });
       }
@@ -233,7 +263,7 @@ export function generateRecommendations({ totals, goals, foods, count = 5 }) {
   const sweetCarbs = [...fruits, ...carbs.filter((c) => mealStyle(c) === "sweet_bowl")];
   const sweetFats = fats.filter(isSweetFat);
   for (const p of sweetProteins.slice(0, 8)) {
-    for (const pf of portionFactors(p).slice(0, 2)) {
+    for (const pf of portionFactors(p).slice(0, 3)) {
       const pItem = candidatePart(p, pf);
       for (const c of sweetCarbs.slice(0, 8)) {
         if (!compatible(p, c)) continue;
