@@ -1,5 +1,5 @@
 (function () {
-  const FALLBACK_TEXT = "I’m still learning that one, bro. Try asking about today, what to eat next, protein, sugar, scanning, saved foods, or progress.";
+  const FALLBACK_TEXT = "I’m still learning that one. Try asking about today, what to eat next, protein, sugar, scanning, saved foods, or progress.";
 
   function text(el) { return el?.textContent?.replace(/\s+/g, " ").trim() || ""; }
   function nums(value) { return (String(value || "").match(/-?\d+(?:\.\d+)?/g) || []).map(Number); }
@@ -25,9 +25,9 @@
   function line(m) {
     if (!m) return "";
     if (m.percent >= 105) return `${m.label} is over target (${amount(m)}).`;
-    if (m.percent >= 95) return `${m.label} is basically nailed (${amount(m)}).`;
+    if (m.percent >= 95) return `${m.label} is right on track (${amount(m)}).`;
     if (m.percent >= 80) return `${m.label} is close (${amount(m)}).`;
-    if (m.percent < 50) return `${m.label} is still pretty low (${amount(m)}).`;
+    if (m.percent < 50) return `${m.label} still has plenty of room (${amount(m)}).`;
     return `${m.label} has room left (${amount(m)}).`;
   }
 
@@ -35,7 +35,7 @@
     try {
       const doc = await getTodayDocument();
       const macros = parseMacroCards(doc);
-      if (!macros.length) return "I can’t read the Today page yet, bro. Open Today once and ask me again.";
+      if (!macros.length) return "I can’t read the Today page yet. Open Today once and ask me again.";
       const calories = macroByName(macros, "Calories");
       const protein = macroByName(macros, "Protein");
       const sugar = macroByName(macros, "Sugar");
@@ -45,33 +45,33 @@
       const notes = [];
       if (calories) notes.push(line(calories));
       if (protein) notes.push(line(protein));
-      if (sugar && sugar.percent >= 85) notes.push(sugar.percent >= 105 ? `Sugar is high (${amount(sugar)}).` : `Sugar is creeping up (${amount(sugar)}).`);
-      if (fiber && fiber.percent < 70) notes.push(`Fiber is low (${amount(fiber)}).`);
-      if (fat && fat.percent >= 105) notes.push(`Fat is over (${amount(fat)}).`);
-      if (carbs && carbs.percent >= 105) notes.push(`Carbs are over (${amount(carbs)}).`);
+      if (sugar && sugar.percent >= 85) notes.push(sugar.percent >= 105 ? `Sugar is high (${amount(sugar)}).` : `Sugar is getting close (${amount(sugar)}).`);
+      if (fiber && fiber.percent < 70) notes.push(`Fiber could use a boost (${amount(fiber)}).`);
+      if (fat && fat.percent >= 105) notes.push(`Fat is over target (${amount(fat)}).`);
+      if (carbs && carbs.percent >= 105) notes.push(`Carbs are over target (${amount(carbs)}).`);
       let next = "";
-      if (protein && protein.percent < 90) next = "Move: protein first. Don’t overthink it — hit Meals and pick something simple.";
-      else if (sugar && sugar.percent >= 90) next = "Move: keep the next one lower-sugar and higher-protein. Macro tracking does not need to be a whole math exam.";
-      else if (calories && calories.percent >= 95) next = "Move: you’re close on calories, so keep the rest light and protein-focused.";
-      else next = "Move: you’ve got room. Use Meals for a solid next option from what’s actually available.";
-      return `Alright bro, here’s the day so far: ${notes.slice(0, 5).join(" ")} ${next}`;
+      if (protein && protein.percent < 90) next = "Next step: protein first. Open Meals for a simple option that helps move the day closer to your goals.";
+      else if (sugar && sugar.percent >= 90) next = "Next step: keep the next meal lower in sugar and higher in protein or fiber.";
+      else if (calories && calories.percent >= 95) next = "Next step: you’re close on calories, so keep the rest lighter and protein-focused.";
+      else next = "Next step: you have room. Meals can suggest something realistic from what’s available.";
+      return `Here’s the day so far: ${notes.slice(0, 5).join(" ")} ${next}`;
     } catch (error) {
-      return "I couldn’t read today’s totals yet. Open Today and ask me again — easy fix.";
+      return "I couldn’t read today’s totals yet. Open Today and ask me again.";
     }
   }
 
   async function quickAnswer(question) {
     const q = question.toLowerCase();
     if ((q.includes("how") && q.includes("doing")) || q.includes("today") || q.includes("day so far")) return analyzeToday();
-    if (q.includes("what") && q.includes("eat")) return `${await analyzeToday()} The Meals tab is the move for actual options.`;
-    if (q.includes("goal")) return "Tap the gear to adjust goals. Keep it chill though — change targets based on trends, not one random weird day.";
-    if (q.includes("protein")) return "Protein is usually the main macro to save first. If it’s low, go simple: eggs, Greek yogurt, chicken, tuna, lean beef, or a smoothie. Easy win.";
-    if (q.includes("sugar")) return "Sugar is sneaky. If it’s already high, next meal should be protein + fiber and less sweet stuff. Nothing dramatic, just clean up the next move.";
-    if (q.includes("scan")) return "Tap Scan food, take a clear barcode or Nutrition Facts photo, then confirm it. If confidence looks sketchy, double-check it before saving.";
-    if (q.includes("custom") || q.includes("manual") || q.includes("smoothie") || q.includes("homemade")) return "Use Add custom food for homemade stuff, smoothies, or regular meals. Save it once, and future logging gets way less annoying.";
-    if (q.includes("fridge") || q.includes("foods") || q.includes("saved")) return "Foods is your personal food library. Save what you actually use, mark what’s available, and Meals can suggest from that.";
-    if (q.includes("history") || q.includes("progress") || q.includes("edit") || q.includes("delete") || q.includes("yesterday")) return "Go Progress, tap a day, then edit or delete the meal. Bad logs happen, bro — fix it and move on.";
-    if (q.includes("score") || q.includes("health")) return "Health score is a quick quality check. Useful, but don’t worship the number. Calories, macros, and confidence still matter.";
+    if (q.includes("what") && q.includes("eat")) return `${await analyzeToday()} The Meals tab will show real options based on what’s available.`;
+    if (q.includes("goal")) return "Tap the gear to adjust goals. Small changes are best when they’re based on trends, not one unusual day.";
+    if (q.includes("protein")) return "Protein is usually the main macro to protect. If it’s low, keep it simple: eggs, Greek yogurt, chicken, tuna, lean beef, cottage cheese, or a smoothie.";
+    if (q.includes("sugar")) return "If sugar is already high, make the next meal protein and fiber focused. Simple choices can bring the day back on track.";
+    if (q.includes("scan")) return "Tap Scan food, take a clear barcode or Nutrition Facts photo, then confirm it before saving. If confidence looks low, give it a quick check.";
+    if (q.includes("custom") || q.includes("manual") || q.includes("smoothie") || q.includes("homemade")) return "Use Add custom food for homemade meals, smoothies, or regular items. Save it once, and future logging gets easier.";
+    if (q.includes("fridge") || q.includes("foods") || q.includes("saved")) return "Foods is your saved food list. Add what you actually use, mark what’s available, and Meals can build better ideas from it.";
+    if (q.includes("history") || q.includes("progress") || q.includes("edit") || q.includes("delete") || q.includes("yesterday")) return "Go to Progress, tap a day, then edit or delete the meal. It’s there so the log stays easy to fix.";
+    if (q.includes("score") || q.includes("health")) return "Health score is a quick quality check. It’s useful, but calories, macros, and confidence still matter most.";
     return FALLBACK_TEXT;
   }
 
@@ -97,12 +97,12 @@
     const panel = document.createElement("aside");
     panel.className = "assistant-panel";
     panel.setAttribute("aria-hidden", "true");
-    panel.innerHTML = `<div class="assistant-sheet"><div class="assistant-head"><div><strong>Macro buddy</strong><span>Tracking does not have to be overwhelming</span></div><button class="icon-button" type="button" data-assistant-close aria-label="Close assistant">×</button></div><div class="assistant-prompts"><button type="button">How am I doing today?</button><button type="button">What should I eat next?</button><button type="button">Is sugar too high?</button><button type="button">How do I edit a past meal?</button></div><div class="assistant-messages" aria-live="polite"></div><form class="assistant-form"><input class="input" name="question" placeholder="Ask me like a normal person..." autocomplete="off" /><button class="button primary" type="submit">Ask</button></form></div>`;
+    panel.innerHTML = `<div class="assistant-sheet"><div class="assistant-head"><div><strong>Food helper</strong><span>Simple help for meals, macros, and progress</span></div><button class="icon-button" type="button" data-assistant-close aria-label="Close assistant">×</button></div><div class="assistant-prompts"><button type="button">How am I doing today?</button><button type="button">What should I eat next?</button><button type="button">Is sugar too high?</button><button type="button">How do I edit a past meal?</button></div><div class="assistant-messages" aria-live="polite"></div><form class="assistant-form"><input class="input" name="question" placeholder="Ask about meals, goals, or progress..." autocomplete="off" /><button class="button primary" type="submit">Ask</button></form></div>`;
     document.body.appendChild(panel);
     const messages = panel.querySelector(".assistant-messages");
     const form = panel.querySelector(".assistant-form");
     const input = form.querySelector("input");
-    addMessage(messages, "bot", "Yo — I’ll keep this simple. Ask me how the day’s going, what to eat next, or what looks off. Macro tracking doesn’t need to feel like homework.");
+    addMessage(messages, "bot", "I’ll keep it simple. Ask how the day is going, what to eat next, or what looks off. Macros don’t have to feel overwhelming.");
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const question = input.value.trim();
