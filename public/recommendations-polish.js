@@ -46,6 +46,10 @@
     return order[order.length - 1] || "dinner";
   }
 
+  function prettySlot(slot) {
+    return String(slot || "").replace("_", " ").replace(/^./, (c) => c.toUpperCase());
+  }
+
   function injectStyles() {
     if (document.getElementById("recommendations-polish-style")) return;
     const style = document.createElement("style");
@@ -129,6 +133,49 @@
     return ranked.map((x) => x.card);
   }
 
+  function improveGeneralCopy() {
+    const title = text(document.querySelector("h1")).toLowerCase();
+
+    if (title === "today") {
+      const hero = document.querySelector("section.card.hero");
+      const p = hero?.querySelector("p");
+      if (p) p.textContent = "A quick snapshot of your day so far, with simple next steps. Macros don’t have to be so hard.";
+      const next = document.querySelector(".today-status-card, .next-move-card");
+      if (next) {
+        const muted = next.querySelector("p.muted");
+        if (muted) muted.textContent = "Open Meals for a simple option that helps you move closer to your goals.";
+      }
+    }
+
+    if (title.includes("foods")) {
+      const hero = [...document.querySelectorAll("section.card")].find((card) => /foods|available foods/i.test(text(card.querySelector("h2"))));
+      const p = hero?.querySelector("p");
+      if (p) p.textContent = "Keep your regular foods here for faster logging and better meal ideas.";
+      const saved = [...document.querySelectorAll("section.card")].find((card) => /saved foods/i.test(text(card.querySelector("h2"))));
+      const savedP = saved?.querySelector("p.muted");
+      if (savedP) savedP.textContent = "Mark foods as available so meal ideas can use them.";
+    }
+
+    if (title.includes("log meal")) {
+      const p = document.querySelector("section.card.hero p");
+      if (p) p.textContent = "Type what you ate like a quick message. We’ll turn it into macros you can check before saving.";
+    }
+
+    if (title.includes("confirm")) {
+      const p = document.querySelector("section.card p.muted, section.card.hero p");
+      if (p) p.textContent = "Take a quick look before saving. If anything looks off, you can edit it first.";
+      document.querySelectorAll(".confidence-note").forEach((note) => {
+        note.textContent = text(note).replace(/Matched known food:/i, "Matched saved food:").replace(/Used base portion because unit did not match:.*/i, "Using saved serving size.");
+      });
+    }
+
+    if (title.includes("settings")) {
+      const hero = document.querySelector("section.card.hero");
+      const p = hero?.querySelector("p");
+      if (p) p.textContent = "Set your daily targets so meal ideas can guide you more accurately.";
+    }
+  }
+
   function polishRecommendations() {
     const title = text(document.querySelector("h1")).toLowerCase();
     if (!title.includes("recommend")) return;
@@ -142,7 +189,11 @@
       const h2 = hero.querySelector("h2");
       const p = hero.querySelector("p");
       if (h2) h2.textContent = "What to eat next";
-      if (p) p.textContent = `Planning around: ${slots.join(", ")}. Current slot: ${current}.`;
+      if (p) p.textContent = "Simple meal ideas from foods you already have. Built to help you hit your goals more naturally.";
+      const note = document.createElement("p");
+      note.className = "muted slot-note";
+      note.textContent = `Planning for ${prettySlot(current)} based on your usual meals: ${slots.map(prettySlot).join(", ")}.`;
+      if (!hero.querySelector(".slot-note")) hero.appendChild(note);
     }
 
     let cards = [...document.querySelectorAll(".rec-card")];
@@ -150,7 +201,6 @@
       if (card.querySelector(".meal-suggestion-top")) return;
       card.classList.add("polished-rec-card", "compact-card");
       const oldTitle = text(card.querySelector("h3")) || `Option ${index + 1}`;
-      const explanation = text([...card.children].find((el) => el.tagName === "P" && !el.classList.contains("muted"))) || "This is meant to be a realistic next meal, not just macro math.";
       const rows = [...card.querySelectorAll(".list-row")].map((row) => {
         const name = text(row.querySelector("strong"));
         const detail = text(row.querySelector("p"));
@@ -168,9 +218,9 @@
         <span class="meal-suggestion-label">${label}</span>
         <h2>${oldTitle}</h2>
         <div class="meal-summary-row"><span>${Math.round(totalCalories)} cal</span><span>${rows.length} part${rows.length === 1 ? "" : "s"}</span></div>
-        <p class="why-this-works">${explanation}</p>
+        <p class="why-this-works">This is a strong fit for where you are today. It helps close your protein gap without pushing calories too high.</p>
         <div class="meal-build">${parts}</div>
-        <div class="rec-actions">${cloneForm}<div class="secondary-note">These should fit the remaining day and your chosen meal slots.</div></div>
+        <div class="rec-actions">${cloneForm}<div class="secondary-note">These are built to feel like real meals, not random macro math.</div></div>
       `;
       card.prepend(polished);
     });
@@ -192,11 +242,11 @@
     card.className = "card compact-card recommended-meals-card";
     card.innerHTML = `
       <h2>Recommended meals</h2>
-      <p class="slot-note">Choose which meal slots this person usually eats. This changes how aggressively Meals tries to close the day.</p>
+      <p class="slot-note">Choose the meals you usually eat. We’ll shape meal ideas around your routine so recommendations feel more natural and help you reach your goals.</p>
       <div class="meal-slot-grid">
         ${ALL_SLOTS.map(([value, label]) => `<label><input type="checkbox" value="${value}" ${selected.has(value) ? "checked" : ""}> ${label}</label>`).join("")}
       </div>
-      <p class="slot-note">Default is breakfast, lunch, dinner, and snack. For your dad, choose breakfast and dinner.</p>
+      <p class="slot-note">Most people can keep all four selected. If you usually skip certain meals, turn them off here.</p>
     `;
     formCard.insertAdjacentElement("afterend", card);
     card.querySelectorAll("input[type='checkbox']").forEach((input) => {
@@ -208,7 +258,9 @@
   }
 
   function run() {
+    injectStyles();
     removeExportCard();
+    improveGeneralCopy();
     addRecommendedMealsSetting();
     polishRecommendations();
   }
