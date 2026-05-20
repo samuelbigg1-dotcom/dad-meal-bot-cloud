@@ -47,6 +47,79 @@
     return unifiedScanInput;
   }
 
+  function todayVancouver() {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
+  }
+
+  function foodToLogPayload(food) {
+    const name = food.name || "Scanned food";
+    const calories = Number(food.calories || 0);
+    const protein = Number(food.protein || 0);
+    const carbs = Number(food.carbs || 0);
+    const fat = Number(food.fat || 0);
+    const sugar = Number(food.sugar || 0);
+    const fiber = Number(food.fiber || 0);
+
+    return {
+      parsedMeal: { meal_type: "snack", items: [] },
+      items: [{
+        food_name: name,
+        quantity: Number(food.baseQty || 1),
+        unit: food.baseUnit || "serving",
+        calories,
+        protein_g: protein,
+        carbs_g: carbs,
+        fat_g: fat,
+        sugar_g: sugar,
+        fiber_g: fiber,
+        confidence: "high",
+        note: "Logged from food scan"
+      }],
+      mealTotals: {
+        calories,
+        protein_g: protein,
+        carbs_g: carbs,
+        fat_g: fat,
+        sugar_g: sugar,
+        fiber_g: fiber
+      },
+      rawMessage: `Scanned food: ${name}`,
+      mealDate: todayVancouver()
+    };
+  }
+
+  function readConfirmFood(form) {
+    const hiddenFoodInput = form.querySelector("input[name='food']");
+    if (!hiddenFoodInput || typeof decodeFoodPayload !== "function") return null;
+
+    const food = decodeFoodPayload(hiddenFoodInput.value);
+    const customName = form.querySelector("input[name='customName']")?.value?.trim();
+    return { ...food, name: customName || food.name || "Scanned food" };
+  }
+
+  async function handleConfirmSaveMode(event) {
+    const form = event.currentTarget;
+    const mode = form.querySelector("input[name='saveMode']:checked")?.value || "fridge";
+    if (mode === "fridge") return;
+
+    event.preventDefault();
+    const food = readConfirmFood(form);
+    if (!food || typeof encodeFoodPayload !== "function") return form.submit();
+
+    const payload = encodeFoodPayload(foodToLogPayload(food));
+
+    if (mode === "both") {
+      const formData = new FormData(form);
+      await fetch(form.action, {
+        method: "POST",
+        body: new URLSearchParams(formData),
+        credentials: "same-origin"
+      });
+    }
+
+    submitHiddenForm("/log/confirm", { payload });
+  }
+
   async function handleUnifiedFoodPhoto(file, action) {
     if (!file) return;
     if (typeof fileToCompressedDataUrl !== "function") throw new Error("Photo tools are still loading. Try once more.");
@@ -141,11 +214,50 @@
     grid.append(
       makeUnifiedScanAction(),
       makeAction({ href: "/log", label: "Log meal", detail: "Type meal", icon: "+" }),
-      makeAction({ href: "/recommendations", label: "Meal ideas", detail: "Next meal", icon: "★" }),
+      makeAction({ href: "/foods", label: "Foods", detail: "Saved items", icon: "⌕" }),
       makeAction({ href: "/history", label: "Progress", detail: "History", icon: "↗" })
     );
     quick.appendChild(grid);
     hero.insertAdjacentElement("afterend", quick);
+
+    const suggested = document.createElement("section");
+    suggested.className = "card compact-card suggested-card";
+    suggested.innerHTML = `<div class="section-head compact-head"><h2>Suggested next</h2><span>Meals</span></div><p>Get a simple meal idea based on today and available foods.</p><a class="button primary wide" href="/recommendations">View meal ideas</a>`;
+    quick.insertAdjacentElement("afterend", suggested);
+  }
+
+  function addFoodSearch(savedCard) {
+    if (!savedCard || savedCard.querySelector(".food-search")) return;
+
+    const input = document.createElement("input");
+    input.className = "input food-search";
+    input.type = "search";
+    input.placeholder = "Search saved foods";
+
+    const list = savedCard.querySelector(".food-list");
+    savedCard.insertBefore(input, list);
+
+    input.addEventListener("input", () => {
+      const q = input.value.trim().toLowerCase();
+      for (const row of savedCard.querySelectorAll(".food-row")) {
+        row.hidden = q && !row.textContent.toLowerCase().includes(q);
+      }
+    });
+  }
+
+  function compactFoodActions(savedCard) {
+    if (!savedCard) return;
+    for (const row of savedCard.querySelectorAll(".food-row")) {
+      if (row.querySelector(".food-action-menu")) continue;
+      const actions = row.querySelector(".food-actions");
+      if (!actions) continue;
+
+      const details = document.createElement("details");
+      details.className = "food-action-menu";
+      details.innerHTML = `<summary>⋯</summary>`;
+      actions.parentNode.insertBefore(details, actions);
+      details.appendChild(actions);
+    }
   }
 
   function compactFoods() {
@@ -158,7 +270,7 @@
       const h2 = hero.querySelector("h2");
       const p = hero.querySelector("p");
       if (h2) h2.textContent = "Foods";
-      if (p) p.textContent = "Scan, confirm, and manage what is available.";
+      if (p) p.textContent = "Scan, save, search, or add custom foods.";
     }
 
     const labelCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("#labelScanForm"));
@@ -168,8 +280,19 @@
 
     const primaryScan = document.createElement("section");
     primaryScan.className = "card compact-card foods-primary-scan";
-    primaryScan.innerHTML = `<div class="section-head compact-head"><h2>Scan food</h2><span>Camera</span></div><p class="muted">Take one photo. The app checks for a barcode first, then tries Nutrition Facts.</p>`;
-    primaryScan.appendChild(makeUnifiedScanAction({ big: true }));
+    primaryScan.innerHTML = `<div class="section-head compact-head"><h2>Add food</h2><span>Fast</span></div>`;
+    const actions = document.createElement("div");
+    actions.className = "quick-action-grid";
+    actions.appendChild(makeUnifiedScanAction({ big: true }));
+    const custom = makeAction({ href: "#", label: "Add custom food", detail: "Manual nutrition", icon: "+" });
+    custom.addEventListener("click", (event) => {
+      event.preventDefault();
+      const toggle = document.getElementById("toggleManualFoodForm");
+      toggle?.click();
+      manualCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    actions.appendChild(custom);
+    primaryScan.appendChild(actions);
     (hero || content.firstElementChild || content).insertAdjacentElement("afterend", primaryScan);
 
     if (labelCard && barcodeCard) {
@@ -188,7 +311,7 @@
 
       const details = document.createElement("details");
       details.className = "card compact-card fallback-scans";
-      details.innerHTML = `<summary>Separate scan options</summary>`;
+      details.innerHTML = `<summary>Trouble scanning?</summary>`;
       const grid = document.createElement("div");
       grid.className = "foods-quick-grid";
       details.appendChild(grid);
@@ -198,15 +321,17 @@
     }
 
     if (manualCard) {
-      manualCard.classList.add("compact-card", "manual-card");
+      manualCard.classList.add("compact-card", "manual-card", "custom-food-card");
       const h2 = manualCard.querySelector("h2");
-      if (h2) h2.textContent = "Add manually";
+      if (h2) h2.textContent = "Custom food";
     }
 
     if (savedCard) {
       savedCard.classList.add("compact-card", "saved-foods-card");
       const h2 = savedCard.querySelector("h2");
-      if (h2) h2.textContent = "Your foods";
+      if (h2) h2.textContent = "Saved foods";
+      addFoodSearch(savedCard);
+      compactFoodActions(savedCard);
     }
   }
 
@@ -218,10 +343,10 @@
     const p = card.querySelector("p");
     const textarea = card.querySelector("textarea");
     if (h2) h2.textContent = "Log a meal";
-    if (p) p.textContent = "Pick the meal type and type what was eaten.";
+    if (p) p.textContent = "Type it like a message.";
     if (textarea) {
       textarea.rows = 4;
-      textarea.placeholder = "Example: 12 oz pork tenderloin, 1 cup rice, broccoli";
+      textarea.placeholder = "I had 3 eggs, 5 roma tomatoes, 2 slices toast...";
     }
   }
 
@@ -233,6 +358,17 @@
       const hero = document.querySelector(".card.hero");
       if (hero) hero.classList.add("compact-card", "confirm-hero");
       confirmForm.closest(".card")?.classList.add("compact-card", "confirm-card");
+
+      if (!confirmForm.querySelector(".scan-save-mode")) {
+        const mode = document.createElement("div");
+        mode.className = "scan-save-mode";
+        mode.innerHTML = `<label class="field-label">Use this scan as</label><div class="segmented three"><label><input type="radio" name="saveMode" value="fridge" checked><span>Add to fridge</span></label><label><input type="radio" name="saveMode" value="log"><span>I ate this today</span></label><label><input type="radio" name="saveMode" value="both"><span>Both</span></label></div>`;
+        const actions = confirmForm.querySelector(".action-row");
+        confirmForm.insertBefore(mode, actions || null);
+        const primaryButton = confirmForm.querySelector("button[type='submit']");
+        if (primaryButton) primaryButton.textContent = "Save";
+      }
+      confirmForm.addEventListener("submit", handleConfirmSaveMode);
     }
     if (mealConfirm) {
       document.body.classList.add("page-confirm-meal");
