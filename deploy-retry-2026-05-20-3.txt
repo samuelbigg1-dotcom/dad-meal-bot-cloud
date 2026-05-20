@@ -1,0 +1,2 @@
+Railway redeploy marker after verifying today's commits are in GitHub.
+Verified: old meal edit/delete routes, realistic recommendation rules, AI realism checker helper, Macro buddy assistant, and current UI polish assets.
