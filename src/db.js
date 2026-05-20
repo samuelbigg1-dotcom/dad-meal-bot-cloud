@@ -90,6 +90,7 @@ export async function initDb() {
       note TEXT
     );
   `);
+  await query(`ALTER TABLE meal_items ADD COLUMN IF NOT EXISTS confidence_percent NUMERIC NOT NULL DEFAULT 65;`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS weights (
@@ -196,19 +197,9 @@ export async function updateFoodFlags(id, { isPantry, includeInRecommendations }
 
 export async function deleteFood(id) {
   const client = await pool.connect();
-
   try {
     await client.query("BEGIN");
-
-    // Foods can be referenced by old meal_items through matched_food_id.
-    // Keep the logged meal history, but detach it from the food before deleting
-    // so Postgres does not reject the delete with a foreign-key error.
-    await client.query(`
-      UPDATE meal_items
-      SET matched_food_id = NULL
-      WHERE matched_food_id = $1;
-    `, [id]);
-
+    await client.query(`UPDATE meal_items SET matched_food_id = NULL WHERE matched_food_id = $1;`, [id]);
     await client.query(`DELETE FROM foods WHERE id = $1`, [id]);
     await client.query("COMMIT");
   } catch (error) {
@@ -226,28 +217,16 @@ async function insertMealWithClient(client, { userId, mealDate, mealType, rawMes
     VALUES
       ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     RETURNING *;
-  `, [
-    userId,
-    mealDate,
-    mealType || "meal",
-    rawMessage,
-    totals.calories,
-    totals.protein_g,
-    totals.carbs_g,
-    totals.fat_g,
-    totals.sugar_g,
-    totals.fiber_g,
-    editedFromMealId
-  ]);
+  `, [userId, mealDate, mealType || "meal", rawMessage, totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.sugar_g, totals.fiber_g, editedFromMealId]);
 
   const meal = mealResult.rows[0];
 
   for (const item of items) {
     await client.query(`
       INSERT INTO meal_items
-        (meal_id, food_name, matched_food_id, quantity, unit, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, confidence, note)
+        (meal_id, food_name, matched_food_id, quantity, unit, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, confidence, confidence_percent, note)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13);
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14);
     `, [
       meal.id,
       item.food_name,
@@ -261,6 +240,7 @@ async function insertMealWithClient(client, { userId, mealDate, mealType, rawMes
       item.sugar_g || 0,
       item.fiber_g || 0,
       item.confidence || "medium",
+      Number(item.confidence_percent || item.confidencePercent || (item.confidence === "high" ? 92 : item.confidence === "low" ? 45 : 65)),
       item.note || null
     ]);
   }
@@ -287,9 +267,7 @@ export async function replaceLastMeal(args) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const lastResult = await client.query(`
-      SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;
-    `, [args.userId]);
+    const lastResult = await client.query(`SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;`, [args.userId]);
     const last = lastResult.rows[0];
     if (!last) {
       await client.query("ROLLBACK");
@@ -308,9 +286,7 @@ export async function replaceLastMeal(args) {
 }
 
 export async function getLastMealWithItems(userId) {
-  const mealResult = await query(`
-    SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;
-  `, [userId]);
+  const mealResult = await query(`SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;`, [userId]);
   const meal = mealResult.rows[0];
   if (!meal) return null;
   const itemsResult = await query(`SELECT * FROM meal_items WHERE meal_id = $1 ORDER BY id ASC`, [meal.id]);
@@ -319,13 +295,7 @@ export async function getLastMealWithItems(userId) {
 
 export async function getDailyTotals(userId, mealDate) {
   const result = await query(`
-    SELECT
-      COALESCE(SUM(calories), 0) AS calories,
-      COALESCE(SUM(protein_g), 0) AS protein_g,
-      COALESCE(SUM(carbs_g), 0) AS carbs_g,
-      COALESCE(SUM(fat_g), 0) AS fat_g,
-      COALESCE(SUM(sugar_g), 0) AS sugar_g,
-      COALESCE(SUM(fiber_g), 0) AS fiber_g
+    SELECT COALESCE(SUM(calories), 0) AS calories, COALESCE(SUM(protein_g), 0) AS protein_g, COALESCE(SUM(carbs_g), 0) AS carbs_g, COALESCE(SUM(fat_g), 0) AS fat_g, COALESCE(SUM(sugar_g), 0) AS sugar_g, COALESCE(SUM(fiber_g), 0) AS fiber_g
     FROM meals
     WHERE telegram_user_id = $1 AND meal_date = $2;
   `, [userId, mealDate]);
@@ -352,14 +322,7 @@ export async function deleteMeal(id, userId) {
 
 export async function getWeeklyTotals(userId, startDate, endDate) {
   const result = await query(`
-    SELECT
-      meal_date::text AS meal_date,
-      COALESCE(SUM(calories), 0) AS calories,
-      COALESCE(SUM(protein_g), 0) AS protein_g,
-      COALESCE(SUM(carbs_g), 0) AS carbs_g,
-      COALESCE(SUM(fat_g), 0) AS fat_g,
-      COALESCE(SUM(sugar_g), 0) AS sugar_g,
-      COALESCE(SUM(fiber_g), 0) AS fiber_g
+    SELECT meal_date::text AS meal_date, COALESCE(SUM(calories), 0) AS calories, COALESCE(SUM(protein_g), 0) AS protein_g, COALESCE(SUM(carbs_g), 0) AS carbs_g, COALESCE(SUM(fat_g), 0) AS fat_g, COALESCE(SUM(sugar_g), 0) AS sugar_g, COALESCE(SUM(fiber_g), 0) AS fiber_g
     FROM meals
     WHERE telegram_user_id = $1 AND meal_date >= $2 AND meal_date <= $3
     GROUP BY meal_date
@@ -370,23 +333,9 @@ export async function getWeeklyTotals(userId, startDate, endDate) {
 
 export async function setTargets(userId, goals) {
   await query(`
-    UPDATE users SET
-      calorie_goal = $2,
-      protein_goal_g = $3,
-      carbs_goal_g = $4,
-      fat_goal_g = $5,
-      sugar_goal_g = $6,
-      fiber_goal_g = $7
+    UPDATE users SET calorie_goal = $2, protein_goal_g = $3, carbs_goal_g = $4, fat_goal_g = $5, sugar_goal_g = $6, fiber_goal_g = $7
     WHERE telegram_user_id = $1;
-  `, [
-    userId,
-    goals.calorie_goal,
-    goals.protein_goal_g,
-    goals.carbs_goal_g,
-    goals.fat_goal_g,
-    goals.sugar_goal_g,
-    goals.fiber_goal_g
-  ]);
+  `, [userId, goals.calorie_goal, goals.protein_goal_g, goals.carbs_goal_g, goals.fat_goal_g, goals.sugar_goal_g, goals.fiber_goal_g]);
 }
 
 export async function saveWeight({ userId, date, weightLb }) {
