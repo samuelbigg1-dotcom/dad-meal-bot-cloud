@@ -3,11 +3,10 @@ import { escapeHtml, round0, round1, macroGoalsFromUser, clamp } from "./utils.j
 export function layout({ title = "Dad Meal Tracker", active = "", body = "", user = null }) {
   const nav = [
     ["dashboard", "/", "Today"],
-    ["log", "/log", "Log"],
-    ["recommend", "/recommendations", "Recommend"],
-    ["history", "/history", "History"],
     ["foods", "/foods", "Foods"],
-    ["settings", "/settings", "Settings"]
+    ["log", "/log", "Log"],
+    ["recommend", "/recommendations", "Meals"],
+    ["history", "/history", "Progress"]
   ];
 
   return `<!doctype html>
@@ -18,7 +17,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
-  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v1" />
+  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v2" />
 </head>
 <body>
   <div class="app-shell">
@@ -32,7 +31,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
           <span data-theme-toggle-icon>🌙</span>
           <span data-theme-toggle-label>Dark</span>
         </button>
-        ${user ? `<a class="small-link" href="/logout">Logout</a>` : ""}
+        ${user ? `<a class="small-link" href="/settings">Goals</a><a class="small-link" href="/logout">Logout</a>` : ""}
       </div>
     </header>
 
@@ -46,7 +45,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   </div>
   <script src="/public/theme.js?v=warm-dark-rework-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
-  <script src="/public/ui-compact.js?v=compact-layout-v1"></script>
+  <script src="/public/ui-compact.js?v=compact-layout-v2"></script>
 </body>
 </html>`;
 }
