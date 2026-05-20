@@ -91,7 +91,7 @@
   }
 
   function openUnifiedScan(action) {
-    const ok = window.confirm("Take a clear photo of either a barcode or the Nutrition Facts label. The app will figure out which one it is.");
+    const ok = window.confirm("Take a clear photo of either a barcode or the Nutrition Facts label.");
     if (!ok) return;
 
     const input = getUnifiedScanInput();
