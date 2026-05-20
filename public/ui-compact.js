@@ -1,9 +1,7 @@
 (function () {
   let unifiedScanInput = null;
 
-  function textOf(selector) {
-    return document.querySelector(selector)?.textContent?.trim() || "";
-  }
+  function textOf(selector) { return document.querySelector(selector)?.textContent?.trim() || ""; }
 
   function makeAction({ href, label, detail, icon = "" }) {
     const link = document.createElement("a");
@@ -44,9 +42,7 @@
     return unifiedScanInput;
   }
 
-  function todayVancouver() {
-    return new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
-  }
+  function todayVancouver() { return new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" }); }
 
   function foodToLogPayload(food) {
     const name = food.name || "Scanned food";
@@ -58,7 +54,7 @@
     const fiber = Number(food.fiber || 0);
     return {
       parsedMeal: { meal_type: "snack", items: [] },
-      items: [{ food_name: name, quantity: Number(food.baseQty || 1), unit: food.baseUnit || "serving", calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, fiber_g: fiber, confidence: "high", note: "Logged from food scan" }],
+      items: [{ food_name: name, quantity: Number(food.baseQty || 1), unit: food.baseUnit || "serving", calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, fiber_g: fiber, confidence: "high", confidence_percent: 92, note: "Logged from food scan" }],
       mealTotals: { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, fiber_g: fiber },
       rawMessage: `Scanned food: ${name}`,
       mealDate: todayVancouver()
@@ -99,11 +95,7 @@
       const barcodeResponse = await fetch("/foods/barcode-image-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
       const barcodeData = await barcodeResponse.json().catch(() => ({}));
       const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
-      if (barcodeResponse.ok && barcode) {
-        setScanStatus(action, `Barcode found: ${barcode}`);
-        submitHiddenForm("/foods/barcode", { barcode });
-        return;
-      }
+      if (barcodeResponse.ok && barcode) { setScanStatus(action, `Barcode found: ${barcode}`); submitHiddenForm("/foods/barcode", { barcode }); return; }
     } catch (error) {}
     setScanStatus(action, "Reading Nutrition Facts...");
     const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
@@ -141,6 +133,7 @@
     if (label === "Protein") return percent >= 95 ? "Protein met" : percent >= 75 ? "Protein close" : "Protein low";
     if (label === "Sugar") return percent >= 105 ? "Sugar high" : percent >= 85 ? "Watch sugar" : "Sugar okay";
     if (label === "Calories") return percent >= 105 ? "Calories over" : percent >= 90 ? "Calories near" : "Calories left";
+    if (label === "Fiber") return percent >= 90 ? "Fiber met" : percent >= 60 ? "Fiber okay" : "Fiber low";
     return percent >= 105 ? `${label} high` : percent >= 90 ? `${label} near` : `${label} left`;
   }
 
@@ -255,7 +248,19 @@
     if (textarea) { textarea.rows = 4; textarea.placeholder = "I had 3 eggs, 5 roma tomatoes, 2 slices toast..."; }
   }
 
-  function confidenceScore(row) {
+  function decodeMealPayload(form) {
+    const value = form.querySelector("input[name='payload']")?.value || "";
+    if (!value) return null;
+    try {
+      const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "===".slice((normalized.length + 3) % 4);
+      return JSON.parse(decodeURIComponent(escape(atob(padded))));
+    } catch (error) {
+      try { return JSON.parse(atob(value)); } catch (inner) { return null; }
+    }
+  }
+
+  function confidenceFallback(row) {
     const raw = row.textContent.toLowerCase();
     let score = raw.includes("high confidence") ? 92 : raw.includes("medium confidence") ? 65 : 45;
     if (/starbucks|tim hortons|mcdonald|restaurant|burger king|wendy|subway|a&w|taco bell|kfc/.test(raw) && !raw.includes("high confidence")) score = Math.min(score, 55);
@@ -265,14 +270,18 @@
   function addMealConfidenceTools() {
     const form = document.querySelector("form[action='/log/confirm']");
     if (!form || document.querySelector(".confidence-warning")) return;
+    const payload = decodeMealPayload(form);
+    const payloadItems = Array.isArray(payload?.items) ? payload.items : [];
     const rows = [...document.querySelectorAll(".confirm-card .list-row, .page-confirm-meal .list-row")];
     let lowest = 100;
-    for (const row of rows) {
-      const score = confidenceScore(row);
+    for (const [idx, row] of rows.entries()) {
+      const item = payloadItems[idx] || {};
+      const score = Number.isFinite(Number(item.confidence_percent)) ? Math.round(Number(item.confidence_percent)) : confidenceFallback(row);
       lowest = Math.min(lowest, score);
       row.classList.add("confidence-row", score < 60 ? "low-confidence" : score < 80 ? "medium-confidence" : "high-confidence");
       const info = row.querySelector("p");
       if (info && !info.querySelector(".confidence-score")) info.insertAdjacentHTML("beforeend", ` <span class="confidence-score">${score}% confidence</span>`);
+      if (item.note && info && !info.querySelector(".confidence-note")) info.insertAdjacentHTML("beforeend", `<span class="confidence-note">${item.note}</span>`);
       if (score < 60 && !row.querySelector(".double-check-link")) {
         const name = row.querySelector("strong")?.textContent?.trim() || "food";
         const link = document.createElement("a");
@@ -280,17 +289,50 @@
         link.href = `https://www.google.com/search?q=${encodeURIComponent(name + " calories nutrition")}`;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.textContent = "Double check";
+        link.textContent = "Double check nutrition";
         row.appendChild(link);
       }
     }
     if (lowest < 60) {
       const warning = document.createElement("div");
       warning.className = "confidence-warning";
-      warning.innerHTML = `<strong>Double check recommended</strong><p>One or more items are below 60% confidence. Restaurant/branded foods can be wrong if the exact item or size is unclear.</p>`;
+      warning.innerHTML = `<strong>Extra confirmation required</strong><p>One or more items are below 60% confidence. Double check restaurant, branded, or unclear items before saving.</p><label class="confirm-low-confidence"><input type="checkbox" required> I checked the low-confidence item(s)</label>`;
       form.insertAdjacentElement("beforebegin", warning);
+      const requiredInput = warning.querySelector("input");
+      form.addEventListener("submit", (event) => {
+        if (!requiredInput.checked) {
+          event.preventDefault();
+          requiredInput.focus();
+          warning.classList.add("shake-once");
+          window.setTimeout(() => warning.classList.remove("shake-once"), 350);
+        }
+      });
       const saveButton = form.querySelector("button[type='submit']");
       if (saveButton) saveButton.textContent = "Save anyway";
+    }
+  }
+
+  function compactHistory() {
+    document.querySelectorAll("section.card").forEach((card) => card.classList.add("compact-card"));
+    const dailyCard = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.includes("Daily totals"));
+    if (!dailyCard) return;
+    dailyCard.querySelectorAll(".list-row").forEach((row) => {
+      if (row.tagName.toLowerCase() === "a") return;
+      const date = row.querySelector("strong")?.textContent?.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return;
+      const link = document.createElement("a");
+      link.className = row.className + " history-day-link";
+      link.href = `/history?date=${encodeURIComponent(date)}`;
+      link.innerHTML = row.innerHTML;
+      row.replaceWith(link);
+    });
+    const params = new URLSearchParams(window.location.search);
+    const selected = params.get("date");
+    if (selected && !document.querySelector(".selected-day-card")) {
+      const card = document.createElement("section");
+      card.className = "card compact-card selected-day-card";
+      card.innerHTML = `<div class="section-head compact-head"><h2>${selected}</h2><span>Day review</span></div><p class="muted">Day links are ready. The next backend pass can expand this into full meal-item detail for the selected day.</p><a class="button" href="/history">Back to 7 days</a>`;
+      dailyCard.insertAdjacentElement("beforebegin", card);
     }
   }
 
@@ -323,6 +365,7 @@
     if (title.includes("foods")) compactFoods();
     if (title.includes("log meal")) compactLog();
     if (title.includes("confirm")) compactConfirm();
+    if (title.includes("history") || title.includes("progress")) compactHistory();
   }
 
   document.addEventListener("DOMContentLoaded", run);
