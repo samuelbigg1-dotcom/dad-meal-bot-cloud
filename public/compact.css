@@ -2,6 +2,18 @@
 .compact-ui .compact-card { padding: 14px; border-radius: 24px; }
 .compact-ui .compact-card h2 { font-size: 19px; margin-bottom: 6px; }
 .compact-ui .compact-card p { margin-bottom: 8px; }
+.compact-ui .icon-link {
+  border: 1px solid var(--line);
+  background: var(--card2);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-soft);
+}
 .compact-ui .dashboard-hero h2 { font-size: clamp(28px, 8vw, 42px); letter-spacing: -.055em; }
 .compact-ui .dashboard-hero .eyebrow { margin-bottom: 4px; }
 .compact-ui .quick-actions-card { margin-top: -2px; }
@@ -41,6 +53,7 @@
 .compact-ui .quick-action:first-child small,
 .compact-ui .unified-scan-action.big small { color: rgba(255,255,255,.82); }
 .unified-scan-input { position: fixed; left: -100vw; top: -100vh; width: 1px; height: 1px; opacity: .01; }
+.compact-ui .suggested-card .button { margin-top: 2px; }
 .compact-ui .macro-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .compact-ui .macro-card { padding: 12px; border-radius: 18px; }
 .compact-ui .macro-head { align-items: flex-start; gap: 6px; flex-direction: column; }
@@ -50,9 +63,10 @@
 .compact-ui .foods-primary-scan { display: grid; gap: 10px; }
 .compact-ui .foods-primary-scan .quick-action { min-height: 78px; }
 .compact-ui .fallback-scans { padding-top: 0; padding-bottom: 0; overflow: hidden; }
-.compact-ui .fallback-scans summary {
+.compact-ui .fallback-scans summary,
+.compact-ui .food-action-menu summary {
   list-style: none;
-  min-height: 52px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,7 +74,8 @@
   font-weight: 900;
   color: var(--muted);
 }
-.compact-ui .fallback-scans summary::-webkit-details-marker { display: none; }
+.compact-ui .fallback-scans summary::-webkit-details-marker,
+.compact-ui .food-action-menu summary::-webkit-details-marker { display: none; }
 .compact-ui .fallback-scans summary::after { content: "+"; font-size: 20px; color: var(--accent); }
 .compact-ui .fallback-scans[open] { padding-bottom: 14px; }
 .compact-ui .fallback-scans[open] summary::after { content: "–"; }
@@ -72,15 +87,39 @@
 .compact-ui .manual-card { padding-top: 12px; padding-bottom: 12px; }
 .compact-ui .manual-card h2 { display: none; }
 .compact-ui .manual-card .muted { margin-bottom: 0; }
+.compact-ui .saved-foods-card .food-search { margin: 6px 0 12px; }
 .compact-ui .saved-foods-card .food-list { gap: 8px; }
-.compact-ui .food-row { padding: 11px; border-radius: 18px; }
+.compact-ui .food-row { padding: 11px; border-radius: 18px; display: grid; grid-template-columns: 1fr auto; align-items: center; }
 .compact-ui .food-row strong { font-size: 15px; }
 .compact-ui .food-row p { font-size: 12px; line-height: 1.35; }
+.compact-ui .food-action-menu { position: relative; }
+.compact-ui .food-action-menu summary {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 999px;
+  justify-content: center;
+  color: var(--text);
+  font-size: 22px;
+}
+.compact-ui .food-action-menu[open] .food-actions {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card2);
+  box-shadow: var(--shadow-soft);
+}
+.compact-ui .food-action-menu[open] { grid-column: 1 / -1; }
 .compact-ui .food-actions { gap: 6px; }
 .compact-ui .chip { padding: 7px 9px; }
 .compact-ui .log-card .textarea { min-height: 112px; }
 .compact-ui .segmented { gap: 6px; }
 .compact-ui .segmented span { min-height: 40px; font-size: 12px; padding: 8px; }
+.compact-ui .segmented.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.compact-ui .scan-save-mode { display: grid; gap: 8px; }
 .compact-ui .confirm-hero { display: none; }
 .compact-ui .confirm-card { margin-top: 2px; }
 .compact-ui .confirm-card .pill-row { margin: 4px 0; }
@@ -88,6 +127,12 @@
 .compact-ui #editableNutritionFields label { font-size: 12px; }
 .compact-ui #editableNutritionFields .input { padding: 10px 11px; border-radius: 14px; }
 .compact-ui .list-row { padding: 11px; border-radius: 18px; }
+.compact-ui .meal-row-compact p {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .compact-ui .totals-pill { margin: 8px 0; }
 .compact-ui .totals-pill span, .compact-ui .pill { padding: 7px 9px; font-size: 12px; }
 .compact-ui .bottom-nav { padding-top: 8px; }
@@ -106,6 +151,5 @@
   .compact-ui .food-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
   .compact-ui .food-actions form:last-child { grid-column: 1 / -1; }
   .compact-ui .topbar { align-items: flex-start; }
-  .compact-ui .topbar-actions { gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 44%; }
-  .compact-ui .topbar-actions .small-link[href="/logout"] { display: none; }
+  .compact-ui .topbar-actions { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 }
