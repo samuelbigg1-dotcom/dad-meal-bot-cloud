@@ -16,16 +16,23 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="/public/app.css?v=mobile-file-overlay-v1" />
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
+  <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <div class="eyebrow">Macro tracker</div>
+        <div class="eyebrow">Macro / Meal Tracker</div>
         <h1>${escapeHtml(title)}</h1>
       </div>
-      ${user ? `<a class="small-link" href="/logout">Logout</a>` : ""}
+      <div class="topbar-actions">
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+          <span data-theme-toggle-icon>🌙</span>
+          <span data-theme-toggle-label>Dark</span>
+        </button>
+        ${user ? `<a class="small-link" href="/logout">Logout</a>` : ""}
+      </div>
     </header>
 
     <main class="content">
@@ -36,6 +43,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
       ${nav.map(([key, href, label]) => `<a class="${active === key ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
   </div>
+  <script src="/public/theme.js?v=warm-dark-rework-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
 </body>
 </html>`;
