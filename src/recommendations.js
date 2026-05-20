@@ -1,15 +1,12 @@
+import { execFileSync } from "child_process";
 import { scaledFoodItem, totalItems } from "./nutrition.js";
-import { clamp, round0, round1 } from "./utils.js";
+import { round0, round1 } from "./utils.js";
 
 const MACROS = ["calories", "protein_g", "carbs_g", "fat_g", "sugar_g", "fiber_g"];
 
-function toNum(v) {
-  return Number(v || 0);
-}
-
-function nameOf(food) {
-  return String(food.food_name || food.name || "").toLowerCase();
-}
+function toNum(v) { return Number(v || 0); }
+function nameOf(food) { return String(food.food_name || food.name || "").toLowerCase(); }
+function hasAny(value, words) { return words.some((word) => value.includes(word)); }
 
 export function remainingMacros(totals, goals) {
   const out = {};
@@ -19,10 +16,6 @@ export function remainingMacros(totals, goals) {
 
 function pctAfter(totals, candidate, goals, key) {
   return (toNum(totals[key]) + toNum(candidate[key])) / Math.max(1, toNum(goals[key]));
-}
-
-function hasAny(value, words) {
-  return words.some((word) => value.includes(word));
 }
 
 function inferType(food) {
@@ -35,13 +28,11 @@ function inferType(food) {
     if (category.includes("fruit")) return "fruit";
     if (category.includes("fat") || category.includes("spread")) return "fat";
   }
-
   if (hasAny(name, ["chicken", "turkey", "beef", "steak", "salmon", "tuna", "egg", "eggs", "yogurt", "greek", "cottage cheese", "protein", "pork", "shrimp", "tofu"])) return "protein";
   if (hasAny(name, ["rice", "potato", "oat", "oats", "bread", "toast", "tortilla", "pasta", "noodle", "quinoa", "cereal", "bagel", "wrap", "bun"])) return "carb";
   if (hasAny(name, ["broccoli", "spinach", "lettuce", "salad", "pepper", "tomato", "cucumber", "carrot", "zucchini", "asparagus", "beans", "green", "vegetable", "veg"])) return "vegetable";
   if (hasAny(name, ["banana", "apple", "berries", "berry", "orange", "fruit", "grape", "mango", "pineapple"])) return "fruit";
   if (hasAny(name, ["peanut butter", "almond butter", "butter", "oil", "avocado", "nuts", "walnut", "almond", "mayo", "cheese", "cream cheese"])) return "fat";
-
   const cal = Math.max(1, toNum(food.calories));
   const proteinCal = toNum(food.protein_g) * 4;
   const carbCal = toNum(food.carbs_g) * 4;
@@ -67,8 +58,7 @@ function mealStyle(food) {
 }
 
 function isSweetFat(food) {
-  const n = nameOf(food);
-  return hasAny(n, ["peanut butter", "almond butter", "nutella", "jam", "honey"]);
+  return hasAny(nameOf(food), ["peanut butter", "almond butter", "nutella", "jam", "honey"]);
 }
 
 function isSavoryProtein(food) {
@@ -81,20 +71,11 @@ function compatible(a, b) {
   const bn = nameOf(b);
   const aType = inferType(a);
   const bType = inferType(b);
-
-  // Hard no: sweet spreads/fats with savory meats/fish.
   if ((isSweetFat(a) && isSavoryProtein(b)) || (isSweetFat(b) && isSavoryProtein(a))) return false;
-
-  // Avoid fruit randomly beside savory meat/fish unless it is clearly part of a sweet bowl/snack.
   if ((aType === "fruit" && isSavoryProtein(b)) || (bType === "fruit" && isSavoryProtein(a))) return false;
-
-  // Avoid multiple main proteins in one suggestion.
   if (aType === "protein" && bType === "protein") return false;
-
-  // Avoid obviously odd dairy/fish combos.
   if ((hasAny(an, ["salmon", "tuna", "fish", "shrimp"]) && hasAny(bn, ["yogurt", "cottage cheese", "milk"])) ||
       (hasAny(bn, ["salmon", "tuna", "fish", "shrimp"]) && hasAny(an, ["yogurt", "cottage cheese", "milk"]))) return false;
-
   return true;
 }
 
@@ -102,7 +83,6 @@ function portionFactors(food) {
   const unit = String(food.base_unit || "").toLowerCase();
   const type = inferType(food);
   const n = nameOf(food);
-
   if (type === "protein" && unit === "oz") return [4, 6, 8];
   if (type === "protein" && unit === "egg") return [2, 3];
   if (type === "protein" && hasAny(n, ["yogurt", "cottage cheese"])) return [1];
@@ -123,21 +103,17 @@ function candidatePart(food, factor) {
   });
 }
 
-function sum(items) {
-  return totalItems(items);
-}
+function sum(items) { return totalItems(items); }
 
 function titleFor(items) {
   const names = items.map((i) => i.food_name);
-  const lower = names.map((n) => String(n).toLowerCase());
   const protein = items.find((i) => inferType(i) === "protein") || items[0];
   const carb = items.find((i) => inferType(i) === "carb");
   const veg = items.find((i) => inferType(i) === "vegetable");
   const fruit = items.find((i) => inferType(i) === "fruit");
   const fat = items.find((i) => inferType(i) === "fat");
-
   if (protein && hasAny(nameOf(protein), ["yogurt", "cottage cheese"])) return `${protein.food_name} bowl`;
-  if (protein && hasAny(nameOf(protein), ["egg", "eggs"])) return carb ? `Eggs with ${carb.food_name}` : `Egg plate`;
+  if (protein && hasAny(nameOf(protein), ["egg", "eggs"])) return carb ? `Eggs with ${carb.food_name}` : "Egg plate";
   if (protein && carb && veg) return `${protein.food_name} plate`;
   if (protein && carb) return `${protein.food_name} with ${carb.food_name}`;
   if (protein && veg) return `${protein.food_name} with ${veg.food_name}`;
@@ -154,47 +130,33 @@ function mealRealismScore(items) {
   if (types.includes("vegetable")) score += 25;
   if (types.includes("fruit") && items.some((i) => mealStyle(i) === "sweet_bowl")) score += 15;
   if (types.includes("fat")) score += 10;
-
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      if (!compatible(items[i], items[j])) score -= 500;
-    }
-  }
-
-  // Penalize random fat added to otherwise normal plate unless it is a sensible savory fat.
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (!compatible(items[i], items[j])) score -= 500;
   const fat = items.find((i) => inferType(i) === "fat");
   const protein = items.find((i) => inferType(i) === "protein");
   if (fat && protein && isSweetFat(fat) && isSavoryProtein(protein)) score -= 500;
-
   return score;
 }
 
 function scoreCandidate({ totals, goals, candidate, items }) {
   let score = 700 + mealRealismScore(items);
-
-  const cals = candidate.calories;
-  if (cals < 250) score -= 60;
-  if (cals > 900) score -= 120;
-
+  if (candidate.calories < 250) score -= 60;
+  if (candidate.calories > 900) score -= 120;
   const proteinLow = toNum(totals.protein_g) / Math.max(1, goals.protein_g) < 0.85;
   const sugarHigh = toNum(totals.sugar_g) / Math.max(1, goals.sugar_g) > 0.75;
   const fatHigh = toNum(totals.fat_g) / Math.max(1, goals.fat_g) > 0.75;
-
   if (proteinLow) score += Math.min(180, candidate.protein_g * 5);
   if (proteinLow && candidate.protein_g < 25) score -= 160;
   if (sugarHigh && candidate.sugar_g > 10) score -= 180;
   if (fatHigh && candidate.fat_g > 18) score -= 140;
-
   for (const key of MACROS) {
     const after = pctAfter(totals, candidate, goals, key);
     if (["calories", "protein_g", "carbs_g"].includes(key) && after > 1.18) score -= 220 * (after - 1.18);
     if (["sugar_g", "fat_g"].includes(key) && after > 1.05) score -= 280 * (after - 1.05);
   }
-
   return round1(score);
 }
 
-function reasonFor(totals, goals, candidate, items) {
+function reasonFor(totals, goals, candidate) {
   const reasons = [];
   const p = (key) => toNum(totals[key]) / Math.max(1, toNum(goals[key]));
   if (p("protein_g") < 0.8) reasons.push("adds protein without making the meal weird");
@@ -219,29 +181,66 @@ function classifyFoods(foods) {
 
 function pushIfRealistic(candidates, { totals, goals, items }) {
   if (!items.length) return;
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      if (!compatible(items[i], items[j])) return;
-    }
-  }
-
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (!compatible(items[i], items[j])) return;
   const totalsForMeal = sum(items);
   if (totalsForMeal.calories < 150) return;
   if (totalsForMeal.calories > 1000) return;
   if (pctAfter(totals, totalsForMeal, goals, "sugar_g") > 1.2) return;
   if (pctAfter(totals, totalsForMeal, goals, "fat_g") > 1.25) return;
   if (pctAfter(totals, totalsForMeal, goals, "calories") > 1.18) return;
-
   const score = scoreCandidate({ totals, goals, candidate: totalsForMeal, items });
   if (score < 250) return;
+  candidates.push({ title: titleFor(items), items, totals: totalsForMeal, score, reason: reasonFor(totals, goals, totalsForMeal) });
+}
 
-  candidates.push({
-    title: titleFor(items),
-    items,
-    totals: totalsForMeal,
-    score,
-    reason: reasonFor(totals, goals, totalsForMeal, items)
+function validateWithOpenAISync(candidates) {
+  if (!process.env.OPENAI_API_KEY || !candidates.length) return candidates;
+  const limited = candidates.slice(0, Math.min(12, candidates.length));
+  const input = {
+    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+    options: limited.map((option, index) => ({
+      index,
+      title: option.title,
+      items: option.items.map((item) => ({ name: item.food_name, quantity: item.quantity, unit: item.unit }))
+    }))
+  };
+  const code = `
+const fs = require('fs');
+const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+const schema = { type:'object', additionalProperties:false, required:['results'], properties:{ results:{ type:'array', items:{ type:'object', additionalProperties:false, required:['index','is_realistic','title','reason'], properties:{ index:{type:'number'}, is_realistic:{type:'boolean'}, title:{type:'string'}, reason:{type:'string'} } } } } };
+(async () => {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + process.env.OPENAI_API_KEY },
+    body: JSON.stringify({
+      model: input.model,
+      temperature: 0,
+      messages:[
+        { role:'system', content:'You are a meal realism checker. Reject random macro piles and food pairings a normal person would not eat. Reject salmon with peanut butter, fish with yogurt, steak with berries, random fruit beside meat, or multiple unrelated main proteins. Accept normal meals like chicken rice broccoli, salmon potato salad, eggs toast fruit, Greek yogurt berries oats, tuna sandwich, beef rice vegetables. Return only JSON.' },
+        { role:'user', content: JSON.stringify({ options: input.options }) }
+      ],
+      response_format:{ type:'json_schema', json_schema:{ name:'meal_realism_check', strict:true, schema } }
+    })
   });
+  const data = await response.json();
+  process.stdout.write(data.choices?.[0]?.message?.content || JSON.stringify({ results: input.options.map(o => ({ index:o.index, is_realistic:true, title:o.title, reason:'No AI result' })) }));
+})().catch(() => process.stdout.write(JSON.stringify({ results: input.options.map(o => ({ index:o.index, is_realistic:true, title:o.title, reason:'AI validation failed open' })) })));
+`;
+  try {
+    const raw = execFileSync(process.execPath, ["-e", code], { input: JSON.stringify(input), encoding: "utf8", timeout: 18000, maxBuffer: 1024 * 1024 });
+    const parsed = JSON.parse(raw);
+    const acceptedIndexes = new Set((parsed.results || []).filter((r) => r.is_realistic).map((r) => Number(r.index)));
+    const titleByIndex = new Map((parsed.results || []).map((r) => [Number(r.index), r.title]));
+    const reasonByIndex = new Map((parsed.results || []).map((r) => [Number(r.index), r.reason]));
+    const accepted = limited.filter((_, index) => acceptedIndexes.has(index)).map((option, index) => ({
+      ...option,
+      title: titleByIndex.get(index) || option.title,
+      reason: reasonByIndex.get(index) || option.reason
+    }));
+    return accepted.length ? accepted : candidates.slice(0, 5);
+  } catch (error) {
+    return candidates;
+  }
 }
 
 export function generateRecommendations({ totals, goals, foods, count = 5 }) {
@@ -257,35 +256,24 @@ export function generateRecommendations({ totals, goals, foods, count = 5 }) {
     for (const pf of portionFactors(p)) {
       const pItem = candidatePart(p, pf);
       pushIfRealistic(candidates, { totals, goals, items: [pItem] });
-
-      // Real plate: protein + carb
       for (const c of carbs.slice(0, 14)) {
         if (!compatible(p, c)) continue;
         for (const cf of portionFactors(c)) {
           const cItem = candidatePart(c, cf);
           pushIfRealistic(candidates, { totals, goals, items: [pItem, cItem] });
-
-          // Real plate: protein + carb + vegetable
           for (const v of vegetables.slice(0, 10)) {
             if (!compatible(p, v) || !compatible(c, v)) continue;
-            for (const vf of portionFactors(v).slice(0, 2)) {
-              pushIfRealistic(candidates, { totals, goals, items: [pItem, cItem, candidatePart(v, vf)] });
-            }
+            for (const vf of portionFactors(v).slice(0, 2)) pushIfRealistic(candidates, { totals, goals, items: [pItem, cItem, candidatePart(v, vf)] });
           }
         }
       }
-
-      // Lighter plate: protein + vegetable
       for (const v of vegetables.slice(0, 10)) {
         if (!compatible(p, v)) continue;
-        for (const vf of portionFactors(v).slice(0, 2)) {
-          pushIfRealistic(candidates, { totals, goals, items: [pItem, candidatePart(v, vf)] });
-        }
+        for (const vf of portionFactors(v).slice(0, 2)) pushIfRealistic(candidates, { totals, goals, items: [pItem, candidatePart(v, vf)] });
       }
     }
   }
 
-  // Sweet/snack style: yogurt/cottage cheese/protein + fruit/oats/peanut butter only when compatible.
   const sweetProteins = proteins.filter((p) => mealStyle(p) === "sweet_bowl");
   const sweetCarbs = [...fruits, ...carbs.filter((c) => mealStyle(c) === "sweet_bowl")];
   const sweetFats = fats.filter(isSweetFat);
@@ -311,20 +299,16 @@ export function generateRecommendations({ totals, goals, foods, count = 5 }) {
     if (seenIngredientCombos.has(ingredientComboKey)) continue;
     seenIngredientCombos.add(ingredientComboKey);
     unique.push(candidate);
-    if (unique.length >= count) break;
   }
 
-  return unique;
+  return validateWithOpenAISync(unique).slice(0, count);
 }
 
 export function macroStatus(totals, goals) {
   const status = {};
   for (const key of MACROS) {
     const pct = toNum(totals[key]) / Math.max(1, toNum(goals[key]));
-    status[key] = {
-      pct: round0(pct * 100),
-      level: pct < 0.6 ? "low" : pct < 0.9 ? "on-track" : pct <= 1.05 ? "near" : "over"
-    };
+    status[key] = { pct: round0(pct * 100), level: pct < 0.6 ? "low" : pct < 0.9 ? "on-track" : pct <= 1.05 ? "near" : "over" };
   }
   return status;
 }
