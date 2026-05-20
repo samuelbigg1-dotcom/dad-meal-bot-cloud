@@ -16,6 +16,18 @@ function confidenceFallback(label) {
   return 65;
 }
 
+function eggUnitEquivalent(a, b) {
+  const clean = (value) => String(value || "").toLowerCase().trim();
+  const eggUnits = new Set(["egg", "eggs", "large", "large egg", "large eggs", "whole egg", "whole eggs"]);
+  return eggUnits.has(clean(a)) && eggUnits.has(clean(b));
+}
+
+function unitEquivalent(parsedUnit, baseUnit, parsedRaw, baseRaw) {
+  if (parsedUnit === baseUnit) return true;
+  if (eggUnitEquivalent(parsedRaw || parsedUnit, baseRaw || baseUnit)) return true;
+  return false;
+}
+
 export function findFoodMatch(parsedItem, foods) {
   const itemName = normalizeText(parsedItem.food_name);
   const compoundWords = new Set(["muffin", "muffins", "bread", "cake", "cookie", "cookies", "bar", "bars", "pie", "pancake", "pancakes", "waffle", "waffles", "cereal", "granola"]);
@@ -56,13 +68,13 @@ export function scaleKnownFood(parsedItem, matchedFood) {
   let note = "";
   let confidencePercent = 94;
 
-  if (parsedUnit === baseUnit && baseQty !== 0) {
+  if (unitEquivalent(parsedUnit, baseUnit, parsedItem.unit, matchedFood.base_unit) && baseQty !== 0) {
     factor = qty / baseQty;
     note = `Matched known food: ${matchedFood.name}.`;
   } else {
     factor = 1;
     confidencePercent = 78;
-    note = `Matched known food: ${matchedFood.name}. Used base portion because unit did not match: "${parsedItem.unit}" vs "${matchedFood.base_unit}".`;
+    note = `Matched known food: ${matchedFood.name}. Using saved serving size.`;
   }
 
   return scaledFoodItem(matchedFood, factor, {
