@@ -1,0 +1,83 @@
+.compact-ui .content { gap: 12px; }
+.compact-ui .compact-card { padding: 14px; border-radius: 24px; }
+.compact-ui .compact-card h2 { font-size: 19px; margin-bottom: 6px; }
+.compact-ui .compact-card p { margin-bottom: 8px; }
+.compact-ui .dashboard-hero h2 { font-size: clamp(28px, 8vw, 42px); letter-spacing: -.055em; }
+.compact-ui .dashboard-hero .eyebrow { margin-bottom: 4px; }
+.compact-ui .quick-actions-card { margin-top: -2px; }
+.compact-ui .quick-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.compact-ui .quick-action {
+  min-height: 76px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  box-shadow: var(--shadow-soft);
+}
+.compact-ui .quick-action:first-child { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: var(--primary-text); border-color: transparent; }
+.compact-ui .quick-action-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.18);
+  border: 1px solid var(--line);
+  font-weight: 950;
+  flex: 0 0 auto;
+}
+.compact-ui .quick-action strong { display: block; font-size: 15px; line-height: 1.1; }
+.compact-ui .quick-action small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.compact-ui .quick-action:first-child small { color: rgba(255,255,255,.78); }
+.compact-ui .macro-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.compact-ui .macro-card { padding: 12px; border-radius: 18px; }
+.compact-ui .macro-head { align-items: flex-start; gap: 6px; flex-direction: column; }
+.compact-ui .macro-head strong { font-size: 15px; }
+.compact-ui .macro-values { flex-direction: column; gap: 2px; }
+.compact-ui .bar { height: 7px; margin: 9px 0 6px; }
+.compact-ui .foods-quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.compact-ui .scan-option-card { box-shadow: var(--shadow-soft); }
+.compact-ui .scan-option-card h2 { font-size: 18px; }
+.compact-ui .scan-option-card .grid-form { grid-template-columns: 1fr; }
+.compact-ui .scan-option-card input[type="file"] { min-height: 44px; }
+.compact-ui .manual-card { padding-top: 12px; padding-bottom: 12px; }
+.compact-ui .manual-card h2 { display: none; }
+.compact-ui .manual-card .muted { margin-bottom: 0; }
+.compact-ui .saved-foods-card .food-list { gap: 8px; }
+.compact-ui .food-row { padding: 11px; border-radius: 18px; }
+.compact-ui .food-row strong { font-size: 15px; }
+.compact-ui .food-row p { font-size: 12px; line-height: 1.35; }
+.compact-ui .food-actions { gap: 6px; }
+.compact-ui .chip { padding: 7px 9px; }
+.compact-ui .log-card .textarea { min-height: 112px; }
+.compact-ui .segmented { gap: 6px; }
+.compact-ui .segmented span { min-height: 40px; font-size: 12px; padding: 8px; }
+.compact-ui .confirm-hero { display: none; }
+.compact-ui .confirm-card { margin-top: 2px; }
+.compact-ui .confirm-card .pill-row { margin: 4px 0; }
+.compact-ui #editableNutritionFields { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.compact-ui #editableNutritionFields label { font-size: 12px; }
+.compact-ui #editableNutritionFields .input { padding: 10px 11px; border-radius: 14px; }
+.compact-ui .list-row { padding: 11px; border-radius: 18px; }
+.compact-ui .totals-pill { margin: 8px 0; }
+.compact-ui .totals-pill span, .compact-ui .pill { padding: 7px 9px; font-size: 12px; }
+.compact-ui .bottom-nav { padding-top: 8px; }
+.compact-ui .bottom-nav a { padding: 9px 5px; }
+
+@media (max-width: 760px) {
+  .compact-ui .macro-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .compact-ui .content { padding: 12px; gap: 12px; }
+  .compact-ui .quick-action-grid,
+  .compact-ui .foods-quick-grid { grid-template-columns: 1fr; }
+  .compact-ui .quick-action { min-height: 68px; }
+  .compact-ui #editableNutritionFields { grid-template-columns: 1fr; }
+  .compact-ui .food-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .compact-ui .food-actions form:last-child { grid-column: 1 / -1; }
+}
