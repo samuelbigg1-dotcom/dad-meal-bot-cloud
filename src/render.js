@@ -18,6 +18,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
   <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v5" />
+  <link rel="stylesheet" href="/public/assistant.css?v=assistant-v1" />
 </head>
 <body>
   <div class="app-shell">
@@ -42,7 +43,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
       ${nav.map(([key, href, label]) => `<a class="${active === key ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
   </div>
-  <script src="/public/theme.js?v=warm-dark-rework-v1"></script>
+  <script src="/public/theme.js?v=minimal-icons-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
   <script src="/public/ui-compact.js?v=compact-layout-v4"></script>
   <script src="/public/health-score.js?v=health-score-v1"></script>
