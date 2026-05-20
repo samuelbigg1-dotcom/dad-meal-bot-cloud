@@ -16,6 +16,18 @@
 }
 .compact-ui .dashboard-hero h2 { font-size: clamp(28px, 8vw, 42px); letter-spacing: -.055em; }
 .compact-ui .dashboard-hero .eyebrow { margin-bottom: 4px; }
+.compact-ui .today-status-card { margin-top: -2px; }
+.compact-ui .status-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.compact-ui .status-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  background: var(--card2);
+}
+.compact-ui .status-chip.warn { border-color: rgba(185,80,53,.35); color: var(--accent); }
+.compact-ui .status-chip.near { border-color: rgba(185,80,53,.25); }
 .compact-ui .quick-actions-card { margin-top: -2px; }
 .compact-ui .quick-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .compact-ui .quick-action {
@@ -153,6 +165,41 @@
 .compact-ui #editableNutritionFields label { font-size: 12px; }
 .compact-ui #editableNutritionFields .input { padding: 10px 11px; border-radius: 14px; }
 .compact-ui .list-row { padding: 11px; border-radius: 18px; }
+.compact-ui .confidence-row { position: relative; gap: 10px; }
+.compact-ui .confidence-row.low-confidence { border-color: rgba(185,80,53,.32); background: color-mix(in srgb, var(--card2) 84%, rgba(185,80,53,.08)); }
+.compact-ui .confidence-score {
+  display: inline-flex;
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--muted);
+}
+.compact-ui .low-confidence .confidence-score { color: var(--accent); border-color: rgba(185,80,53,.3); }
+.compact-ui .double-check-link {
+  grid-column: 1 / -1;
+  justify-self: flex-start;
+  margin-top: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(185,80,53,.3);
+  padding: 7px 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  background: var(--card);
+}
+.compact-ui .confidence-warning {
+  border: 1px solid rgba(185,80,53,.32);
+  background: color-mix(in srgb, var(--card2) 82%, rgba(185,80,53,.10));
+  border-radius: 20px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.compact-ui .confidence-warning strong { display: block; color: var(--accent); margin-bottom: 4px; }
+.compact-ui .confidence-warning p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.35; }
 .compact-ui .meal-row-compact p {
   display: -webkit-box;
   -webkit-line-clamp: 1;
