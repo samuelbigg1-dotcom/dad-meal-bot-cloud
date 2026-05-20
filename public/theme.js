@@ -30,7 +30,7 @@
     for (const label of labels) label.textContent = safeTheme === "dark" ? "Light" : "Dark";
 
     const icons = document.querySelectorAll("[data-theme-toggle-icon]");
-    for (const icon of icons) icon.textContent = safeTheme === "dark" ? "☀️" : "🌙";
+    for (const icon of icons) icon.textContent = safeTheme === "dark" ? "◑" : "◐";
   }
 
   setTheme(getPreferredTheme());
