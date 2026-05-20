@@ -1,4 +1,13 @@
 (function () {
+  const MEAL_SLOT_KEY = "recommendedMealSlots";
+  const DEFAULT_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
+  const ALL_SLOTS = [
+    ["breakfast", "Breakfast"],
+    ["lunch", "Lunch"],
+    ["dinner", "Dinner"],
+    ["snack", "Snack"]
+  ];
+
   function text(el) {
     return el?.textContent?.replace(/\s+/g, " ").trim() || "";
   }
@@ -6,6 +15,35 @@
   function firstNumber(value) {
     const match = String(value || "").match(/\d+(?:\.\d+)?/);
     return match ? Number(match[0]) : 0;
+  }
+
+  function readSlots() {
+    try {
+      const raw = localStorage.getItem(MEAL_SLOT_KEY);
+      const parsed = raw ? JSON.parse(raw) : DEFAULT_SLOTS;
+      const clean = parsed.filter((slot) => DEFAULT_SLOTS.includes(slot));
+      return clean.length ? clean : DEFAULT_SLOTS;
+    } catch (error) {
+      return DEFAULT_SLOTS;
+    }
+  }
+
+  function saveSlots(slots) {
+    const clean = slots.filter((slot) => DEFAULT_SLOTS.includes(slot));
+    const finalSlots = clean.length ? clean : DEFAULT_SLOTS;
+    localStorage.setItem(MEAL_SLOT_KEY, JSON.stringify(finalSlots));
+    document.cookie = `${MEAL_SLOT_KEY}=${encodeURIComponent(finalSlots.join(","))}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    return finalSlots;
+  }
+
+  function currentSlotGuess(slots) {
+    const hour = new Date().getHours();
+    const order = slots.length ? slots : DEFAULT_SLOTS;
+    if (hour < 11 && order.includes("breakfast")) return "breakfast";
+    if (hour < 16 && order.includes("lunch")) return "lunch";
+    if (hour < 21 && order.includes("dinner")) return "dinner";
+    if (order.includes("snack")) return "snack";
+    return order[order.length - 1] || "dinner";
   }
 
   function injectStyles() {
@@ -38,6 +76,9 @@
       .compact-ui .rec-actions { display: grid; gap: 8px; margin-top: 10px; }
       .compact-ui .rec-actions .button { width: 100%; justify-content: center; }
       .compact-ui .secondary-note { font-size: 12px; color: var(--muted); text-align: center; }
+      .recommended-meals-card .meal-slot-grid { display:grid; gap:8px; grid-template-columns: repeat(2, minmax(0,1fr)); margin: 12px 0; }
+      .recommended-meals-card label { border:1px solid var(--line); border-radius:16px; padding:10px; background:var(--card2); font-weight:900; display:flex; gap:8px; align-items:center; }
+      .recommended-meals-card .slot-note { color:var(--muted); font-size:13px; line-height:1.35; }
     `;
     document.head.appendChild(style);
   }
@@ -59,21 +100,52 @@
     return "item";
   }
 
+  function caloriesLeftFromHero() {
+    const heroText = text(document.querySelector("section.card.hero"));
+    const match = heroText.match(/(\d+)\s*cal/i);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function reorderForMealSlots(cards) {
+    const slots = readSlots();
+    const current = currentSlotGuess(slots);
+    const fewSlots = slots.length <= 2;
+    const calLeft = caloriesLeftFromHero();
+    const target = current === "breakfast" ? Math.min(850, Math.max(450, calLeft * 0.32))
+      : current === "lunch" ? Math.min(850, Math.max(500, calLeft * 0.45))
+      : current === "snack" ? Math.min(450, Math.max(200, calLeft * 0.25))
+      : Math.min(1050, Math.max(650, calLeft * (fewSlots ? 0.82 : 0.65)));
+
+    const parent = cards[0]?.parentNode;
+    if (!parent) return cards;
+    const ranked = cards.map((card) => {
+      const total = firstNumber(text(card.querySelector(".meal-summary-row span")) || text(card.querySelector(".cal")));
+      const distance = Math.abs(total - target);
+      const bonus = fewSlots && current === "dinner" && total >= 650 ? 160 : 0;
+      const penalty = fewSlots && current === "dinner" && total < 450 ? 260 : 0;
+      return { card, score: -distance + bonus - penalty };
+    }).sort((a, b) => b.score - a.score);
+    ranked.forEach(({ card }) => parent.appendChild(card));
+    return ranked.map((x) => x.card);
+  }
+
   function polishRecommendations() {
     const title = text(document.querySelector("h1")).toLowerCase();
     if (!title.includes("recommend")) return;
     injectStyles();
 
+    const slots = readSlots();
+    const current = currentSlotGuess(slots);
     const hero = document.querySelector("section.card.hero");
     if (hero) {
       hero.classList.add("rec-page-hero", "compact-card");
       const h2 = hero.querySelector("h2");
       const p = hero.querySelector("p");
       if (h2) h2.textContent = "What to eat next";
-      if (p) p.textContent = "Realistic meal ideas from foods marked available. Not random macro piles.";
+      if (p) p.textContent = `Planning around: ${slots.join(", ")}. Current slot: ${current}.`;
     }
 
-    const cards = [...document.querySelectorAll(".rec-card")];
+    let cards = [...document.querySelectorAll(".rec-card")];
     cards.forEach((card, index) => {
       if (card.querySelector(".meal-suggestion-top")) return;
       card.classList.add("polished-rec-card", "compact-card");
@@ -98,14 +170,46 @@
         <div class="meal-summary-row"><span>${Math.round(totalCalories)} cal</span><span>${rows.length} part${rows.length === 1 ? "" : "s"}</span></div>
         <p class="why-this-works">${explanation}</p>
         <div class="meal-build">${parts}</div>
-        <div class="rec-actions">${cloneForm}<div class="secondary-note">These should be normal food pairings. If one looks weird, do not log it.</div></div>
+        <div class="rec-actions">${cloneForm}<div class="secondary-note">These should fit the remaining day and your chosen meal slots.</div></div>
       `;
       card.prepend(polished);
+    });
+    cards = reorderForMealSlots([...document.querySelectorAll(".rec-card")]);
+    cards.forEach((card, index) => {
+      const label = card.querySelector(".meal-suggestion-label");
+      if (label) label.textContent = index === 0 ? "Best fit for now" : `Option ${index + 1}`;
+    });
+  }
+
+  function addRecommendedMealsSetting() {
+    const title = text(document.querySelector("h1")).toLowerCase();
+    if (!title.includes("settings") || document.querySelector(".recommended-meals-card")) return;
+    injectStyles();
+    const formCard = document.querySelector("form[action='/settings']")?.closest("section.card");
+    if (!formCard) return;
+    const selected = new Set(readSlots());
+    const card = document.createElement("section");
+    card.className = "card compact-card recommended-meals-card";
+    card.innerHTML = `
+      <h2>Recommended meals</h2>
+      <p class="slot-note">Choose which meal slots this person usually eats. This changes how aggressively Meals tries to close the day.</p>
+      <div class="meal-slot-grid">
+        ${ALL_SLOTS.map(([value, label]) => `<label><input type="checkbox" value="${value}" ${selected.has(value) ? "checked" : ""}> ${label}</label>`).join("")}
+      </div>
+      <p class="slot-note">Default is breakfast, lunch, dinner, and snack. For your dad, choose breakfast and dinner.</p>
+    `;
+    formCard.insertAdjacentElement("afterend", card);
+    card.querySelectorAll("input[type='checkbox']").forEach((input) => {
+      input.addEventListener("change", () => {
+        const values = [...card.querySelectorAll("input:checked")].map((box) => box.value);
+        saveSlots(values);
+      });
     });
   }
 
   function run() {
     removeExportCard();
+    addRecommendedMealsSetting();
     polishRecommendations();
   }
 
