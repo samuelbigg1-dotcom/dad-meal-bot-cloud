@@ -1,5 +1,8 @@
 import { escapeHtml, round0, round1, macroGoalsFromUser, clamp } from "./utils.js";
 
+const settingsIcon = `<span class="icon-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 0 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 0 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 0 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a2 2 0 0 1 0 4h-.2a1 1 0 0 0-.9.6z"></path></svg></span>`;
+const assistantIcon = `<span class="icon-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5 4 21v-4.6A7.5 7.5 0 0 1 2.5 12c0-4.4 4-8 9-8h1c5 0 9 3.6 9 8s-4 8-9 8h-5z"></path><path d="M8 11h8"></path><path d="M8 14h5"></path></svg></span>`;
+
 export function layout({ title = "Dad Meal Tracker", active = "", body = "", user = null }) {
   const nav = [
     ["dashboard", "/", "Today"],
@@ -18,7 +21,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
   <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v5" />
-  <link rel="stylesheet" href="/public/assistant.css?v=assistant-v1" />
+  <link rel="stylesheet" href="/public/assistant.css?v=minimal-svg-icons-v1" />
 </head>
 <body>
   <div class="app-shell">
@@ -29,9 +32,9 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
       </div>
       <div class="topbar-actions icon-actions">
         <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
-          <span data-theme-toggle-icon>◐</span>
+          <span class="icon-svg" data-theme-toggle-icon></span>
         </button>
-        ${user ? `<a class="icon-button" href="/settings" aria-label="Settings" title="Settings">⌘</a><button class="icon-button" type="button" data-assistant-open aria-label="Assistant" title="Assistant">◌</button>` : ""}
+        ${user ? `<a class="icon-button" href="/settings" aria-label="Settings" title="Settings">${settingsIcon}</a><button class="icon-button" type="button" data-assistant-open aria-label="Assistant" title="Assistant">${assistantIcon}</button>` : ""}
       </div>
     </header>
 
@@ -43,7 +46,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
       ${nav.map(([key, href, label]) => `<a class="${active === key ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
   </div>
-  <script src="/public/theme.js?v=minimal-icons-v1"></script>
+  <script src="/public/theme.js?v=minimal-svg-icons-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
   <script src="/public/ui-compact.js?v=compact-layout-v4"></script>
   <script src="/public/health-score.js?v=health-score-v1"></script>
