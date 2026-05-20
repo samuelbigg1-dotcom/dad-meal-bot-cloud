@@ -17,7 +17,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
-  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v3" />
+  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v4" />
 </head>
 <body>
   <div class="app-shell">
@@ -45,7 +45,8 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   </div>
   <script src="/public/theme.js?v=warm-dark-rework-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
-  <script src="/public/ui-compact.js?v=compact-layout-v3"></script>
+  <script src="/public/ui-compact.js?v=compact-layout-v4"></script>
+  <script src="/public/health-score.js?v=health-score-v1"></script>
 </body>
 </html>`;
 }
@@ -87,8 +88,8 @@ export function macroCards(totals, user) {
 }
 
 export function mealList(meals = []) {
-  if (!meals.length) return `<div class="empty">No meals logged yet today.</div>`;
-  return `<div class="list">
+  if (!meals.length) return `<div class="empty">No meals logged for this day.</div>`;
+  return `<div class="list meal-group-list">
     ${meals.map((m) => `<div class="list-row meal-row-compact">
       <div>
         <strong>${escapeHtml(m.meal_type || "meal")}</strong>
