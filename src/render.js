@@ -18,6 +18,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
+  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v1" />
 </head>
 <body>
   <div class="app-shell">
@@ -45,6 +46,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   </div>
   <script src="/public/theme.js?v=warm-dark-rework-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
+  <script src="/public/ui-compact.js?v=compact-layout-v1"></script>
 </body>
 </html>`;
 }
