@@ -17,7 +17,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
-  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v2" />
+  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v3" />
 </head>
 <body>
   <div class="app-shell">
@@ -31,7 +31,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
           <span data-theme-toggle-icon>🌙</span>
           <span data-theme-toggle-label>Dark</span>
         </button>
-        ${user ? `<a class="small-link" href="/settings">Goals</a><a class="small-link" href="/logout">Logout</a>` : ""}
+        ${user ? `<a class="icon-link" href="/settings" aria-label="Settings" title="Settings">⚙️</a>` : ""}
       </div>
     </header>
 
@@ -45,7 +45,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   </div>
   <script src="/public/theme.js?v=warm-dark-rework-v1"></script>
   <script src="/public/app.js?v=editable-confirm-v6"></script>
-  <script src="/public/ui-compact.js?v=compact-layout-v2"></script>
+  <script src="/public/ui-compact.js?v=compact-layout-v3"></script>
 </body>
 </html>`;
 }
@@ -89,7 +89,7 @@ export function macroCards(totals, user) {
 export function mealList(meals = []) {
   if (!meals.length) return `<div class="empty">No meals logged yet today.</div>`;
   return `<div class="list">
-    ${meals.map((m) => `<div class="list-row">
+    ${meals.map((m) => `<div class="list-row meal-row-compact">
       <div>
         <strong>${escapeHtml(m.meal_type || "meal")}</strong>
         <p>${escapeHtml(m.raw_message || "")}</p>
