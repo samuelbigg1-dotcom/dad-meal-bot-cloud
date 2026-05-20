@@ -20,7 +20,7 @@ const mealSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["food_name", "quantity", "unit", "calories", "protein_g", "carbs_g", "fat_g", "sugar_g", "fiber_g", "confidence", "note"],
+        required: ["food_name", "quantity", "unit", "calories", "protein_g", "carbs_g", "fat_g", "sugar_g", "fiber_g", "confidence", "confidence_percent", "note"],
         properties: {
           food_name: { type: "string" },
           quantity: { type: "number" },
@@ -32,6 +32,7 @@ const mealSchema = {
           sugar_g: { type: "number" },
           fiber_g: { type: "number" },
           confidence: { type: "string", enum: ["high", "medium", "low"] },
+          confidence_percent: { type: "number", minimum: 10, maximum: 100 },
           note: { type: "string" }
         }
       }
@@ -70,16 +71,24 @@ Core rules:
 - If the user says a known preset like smoothie, use one item named Dad Smoothie.
 - Do not give medical advice.
 
+Confidence rules:
+- confidence_percent must be a real 10 to 100 score for how likely the nutrition estimate is correct.
+- 90-100: saved food match, barcode/label data, or very standard item with clear quantity.
+- 70-89: reasonable estimate but brand/portion could vary.
+- 40-69: restaurant/branded food, vague size, drink customization, or uncertain portion.
+- 10-39: highly uncertain or missing important details.
+- confidence label should match the percent: high >= 85, medium 60-84, low < 60.
+
 Accuracy rules:
 - Restaurant, fast-food, coffee-shop, and branded items must be treated as branded items, not generic homemade foods.
 - If the brand/restaurant is named, include it in food_name.
 - Use official/common branded nutrition if you know it confidently.
 - Starbucks Crispy Grilled Cheese on Sourdough is about 520 calories per sandwich. If the user says 2, total it as about 1040 calories.
 - Tim Hortons medium Original Iced Capp made with cream is about 330 to 360 calories per medium drink. Do not parse it as a generic cappuccino.
-- If size/customization is unclear for a restaurant drink, use the common/default version and set confidence to low or medium with a note explaining what assumption was used.
+- If size/customization is unclear for a restaurant drink, use the common/default version and set confidence below 60 with a note explaining what assumption was used.
 - Never return an obviously low generic estimate for branded restaurant foods. If unsure, err toward the official branded item estimate and mark confidence low.
 - If quantity is vague, choose a normal serving and mark confidence low.
-- For chained/restaurant foods where nutrition varies by region or customization, put that uncertainty in note.`
+- For chain/restaurant foods where nutrition varies by region or customization, put that uncertainty in note.`
     },
     { role: "user", content: JSON.stringify({ selectedMealType, mealText: rawText }) }
   ]);
@@ -119,24 +128,14 @@ export async function explainRecommendationsWithAI({ totals, goals, remaining, o
     model,
     temperature: 0.35,
     messages: [
-      {
-        role: "system",
-        content: "You explain meal recommendations for a macro tracker. The code already did the nutrition math. Do not invent new ingredients or change portions. Explain why each option fits today based on low/high macros. Keep it short, practical, and non-medical."
-      },
-      {
-        role: "user",
-        content: JSON.stringify({ totals, goals, remaining, options }, null, 2)
-      }
+      { role: "system", content: "You explain meal recommendations for a macro tracker. The code already did the nutrition math. Do not invent new ingredients or change portions. Explain why each option fits today based on low/high macros. Keep it short, practical, and non-medical." },
+      { role: "user", content: JSON.stringify({ totals, goals, remaining, options }, null, 2) }
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: { name: "recommendation_explanations", strict: true, schema }
-    }
+    response_format: { type: "json_schema", json_schema: { name: "recommendation_explanations", strict: true, schema } }
   });
 
   const content = completion.choices?.[0]?.message?.content;
   if (!content) return [];
-
   return JSON.parse(content).recommendations || [];
 }
 
@@ -144,17 +143,7 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
   const schema = {
     type: "object",
     additionalProperties: false,
-    required: [
-      "name",
-      "baseQty",
-      "baseUnit",
-      "calories",
-      "protein",
-      "carbs",
-      "fat",
-      "sugar",
-      "fiber"
-    ],
+    required: ["name", "baseQty", "baseUnit", "calories", "protein", "carbs", "fat", "sugar", "fiber"],
     properties: {
       name: { type: "string" },
       baseQty: { type: "number" },
@@ -172,41 +161,17 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
     model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
     temperature: 0,
     messages: [
-      {
-        role: "system",
-        content:
-          "You read Nutrition Facts labels from images. Return nutrition per serving. If a value is missing, use 0. Do not invent a brand name. If the food name is not visible, use 'Scanned packaged food'."
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text:
-              "Read this nutrition label. Extract calories, protein, carbs, fat, sugar, and fiber per serving. Also extract serving size as baseQty and baseUnit."
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: imageDataUrl
-            }
-          }
-        ]
-      }
+      { role: "system", content: "You read Nutrition Facts labels from images. Return nutrition per serving. If a value is missing, use 0. Do not invent a brand name. If the food name is not visible, use 'Scanned packaged food'." },
+      { role: "user", content: [
+        { type: "text", text: "Read this nutrition label. Extract calories, protein, carbs, fat, sugar, and fiber per serving. Also extract serving size as baseQty and baseUnit." },
+        { type: "image_url", image_url: { url: imageDataUrl } }
+      ] }
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "nutrition_label_scan",
-        strict: true,
-        schema
-      }
-    }
+    response_format: { type: "json_schema", json_schema: { name: "nutrition_label_scan", strict: true, schema } }
   });
 
   const content = completion.choices?.[0]?.message?.content;
   if (!content) throw new Error("No nutrition label result returned.");
-
   return JSON.parse(content);
 }
 
@@ -215,49 +180,24 @@ export async function scanBarcodeImageWithAI(imageDataUrl) {
     type: "object",
     additionalProperties: false,
     required: ["barcode"],
-    properties: {
-      barcode: { type: "string" }
-    }
+    properties: { barcode: { type: "string" } }
   };
 
   const completion = await getOpenAIClient().chat.completions.create({
     model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
     temperature: 0,
     messages: [
-      {
-        role: "system",
-        content:
-          "You read UPC/EAN barcode numbers from package images. Return only the visible barcode digits. If no barcode is readable, return an empty string."
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Read the barcode number from this image. Return only the digits."
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: imageDataUrl
-            }
-          }
-        ]
-      }
+      { role: "system", content: "You read UPC/EAN barcode numbers from package images. Return only the visible barcode digits. If no barcode is readable, return an empty string." },
+      { role: "user", content: [
+        { type: "text", text: "Read the barcode number from this image. Return only the digits." },
+        { type: "image_url", image_url: { url: imageDataUrl } }
+      ] }
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "barcode_scan",
-        strict: true,
-        schema
-      }
-    }
+    response_format: { type: "json_schema", json_schema: { name: "barcode_scan", strict: true, schema } }
   });
 
   const content = completion.choices?.[0]?.message?.content;
   if (!content) throw new Error("No barcode result returned.");
-
   const parsed = JSON.parse(content);
   return String(parsed.barcode || "").replace(/\D/g, "");
 }
