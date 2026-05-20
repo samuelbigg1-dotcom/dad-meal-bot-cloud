@@ -1,0 +1,2 @@
+Railway redeploy marker after today improvements.
+Includes current repo state: realistic recommendations, UI cleanup, old meal edit/delete, assistant updates, and cache-busted assets.
