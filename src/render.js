@@ -17,7 +17,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"light";}catch(e){document.documentElement.dataset.theme="light";}</script>
   <link rel="stylesheet" href="/public/app.css?v=warm-dark-rework-v1" />
-  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v4" />
+  <link rel="stylesheet" href="/public/compact.css?v=compact-layout-v5" />
 </head>
 <body>
   <div class="app-shell">
@@ -26,12 +26,11 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
         <div class="eyebrow">Macro / Meal Tracker</div>
         <h1>${escapeHtml(title)}</h1>
       </div>
-      <div class="topbar-actions">
-        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
-          <span data-theme-toggle-icon>🌙</span>
-          <span data-theme-toggle-label>Dark</span>
+      <div class="topbar-actions icon-actions">
+        <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+          <span data-theme-toggle-icon>◐</span>
         </button>
-        ${user ? `<a class="icon-link" href="/settings" aria-label="Settings" title="Settings">⚙️</a>` : ""}
+        ${user ? `<a class="icon-button" href="/settings" aria-label="Settings" title="Settings">⌘</a><button class="icon-button" type="button" data-assistant-open aria-label="Assistant" title="Assistant">◌</button>` : ""}
       </div>
     </header>
 
@@ -47,6 +46,7 @@ export function layout({ title = "Dad Meal Tracker", active = "", body = "", use
   <script src="/public/app.js?v=editable-confirm-v6"></script>
   <script src="/public/ui-compact.js?v=compact-layout-v4"></script>
   <script src="/public/health-score.js?v=health-score-v1"></script>
+  <script src="/public/assistant.js?v=assistant-v1"></script>
 </body>
 </html>`;
 }
