@@ -293,6 +293,68 @@ export async function getLastMealWithItems(userId) {
   return { meal, items: itemsResult.rows };
 }
 
+export async function getMealById(userId, mealId) {
+  const result = await query(`SELECT *, meal_date::text AS meal_date FROM meals WHERE telegram_user_id = $1 AND id = $2`, [userId, mealId]);
+  return result.rows[0] || null;
+}
+
+export async function updateMealWithItems({ mealId, userId, mealDate, mealType, rawMessage, totals, items }) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(`SELECT id FROM meals WHERE telegram_user_id = $1 AND id = $2`, [userId, mealId]);
+    if (!existing.rows[0]) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    await client.query(`
+      UPDATE meals SET
+        meal_date = $3,
+        meal_type = $4,
+        raw_message = $5,
+        calories = $6,
+        protein_g = $7,
+        carbs_g = $8,
+        fat_g = $9,
+        sugar_g = $10,
+        fiber_g = $11
+      WHERE telegram_user_id = $1 AND id = $2
+      RETURNING *;
+    `, [userId, mealId, mealDate, mealType || "meal", rawMessage, totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.sugar_g, totals.fiber_g]);
+    await client.query(`DELETE FROM meal_items WHERE meal_id = $1`, [mealId]);
+    for (const item of items) {
+      await client.query(`
+        INSERT INTO meal_items
+          (meal_id, food_name, matched_food_id, quantity, unit, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, confidence, confidence_percent, note)
+        VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14);
+      `, [
+        mealId,
+        item.food_name,
+        item.matched_food_id || null,
+        item.quantity || 1,
+        item.unit || "serving",
+        item.calories || 0,
+        item.protein_g || 0,
+        item.carbs_g || 0,
+        item.fat_g || 0,
+        item.sugar_g || 0,
+        item.fiber_g || 0,
+        item.confidence || "medium",
+        Number(item.confidence_percent || item.confidencePercent || (item.confidence === "high" ? 92 : item.confidence === "low" ? 45 : 65)),
+        item.note || null
+      ]);
+    }
+    await client.query("COMMIT");
+    return mealId;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function getDailyTotals(userId, mealDate) {
   const result = await query(`
     SELECT COALESCE(SUM(calories), 0) AS calories, COALESCE(SUM(protein_g), 0) AS protein_g, COALESCE(SUM(carbs_g), 0) AS carbs_g, COALESCE(SUM(fat_g), 0) AS fat_g, COALESCE(SUM(sugar_g), 0) AS sugar_g, COALESCE(SUM(fiber_g), 0) AS fiber_g
@@ -360,7 +422,7 @@ export async function getWeights(userId, limit = 14) {
 
 export async function exportMealRows(userId) {
   const result = await query(`
-    SELECT meal_date::text AS date, meal_type, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, raw_message, created_at::text AS created_at
+    SELECT id AS meal_id, meal_date::text AS date, meal_type, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, raw_message, created_at::text AS created_at
     FROM meals
     WHERE telegram_user_id = $1
     ORDER BY meal_date ASC, created_at ASC;
