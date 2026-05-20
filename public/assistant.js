@@ -1,117 +1,77 @@
 (function () {
-  const FALLBACK_TEXT = "I’m not sure yet. I can help with progress, goals, meals, scanning food, custom foods, saved foods, and health scores.";
+  const FALLBACK_TEXT = "I’m still learning that one, bro. Try asking about today, what to eat next, protein, sugar, scanning, saved foods, or progress.";
 
-  function text(el) {
-    return el?.textContent?.replace(/\s+/g, " ").trim() || "";
-  }
+  function text(el) { return el?.textContent?.replace(/\s+/g, " ").trim() || ""; }
+  function nums(value) { return (String(value || "").match(/-?\d+(?:\.\d+)?/g) || []).map(Number); }
 
   function parseMacroCards(doc) {
-    const cards = [...doc.querySelectorAll(".macro-card")];
-    return cards.map((card) => {
+    return [...doc.querySelectorAll(".macro-card")].map((card) => {
       const label = text(card.querySelector(".macro-head span"));
       const percent = Number((text(card.querySelector(".macro-head strong")).match(/-?\d+/) || [0])[0]);
-      const values = text(card.querySelector(".macro-values"));
-      return { label, percent, values, status: [...card.classList].find((c) => ["low", "ok", "near", "over"].includes(c)) || "" };
+      const valueNums = nums(text(card.querySelector(".macro-values span:first-child")));
+      return { label, percent, current: valueNums[0] || 0, goal: valueNums[1] || 0 };
     }).filter((m) => m.label);
   }
 
   async function getTodayDocument() {
     if (text(document.querySelector("h1")).toLowerCase() === "today" && document.querySelector(".macro-card")) return document;
     const response = await fetch("/", { credentials: "same-origin" });
-    const html = await response.text();
-    return new DOMParser().parseFromString(html, "text/html");
+    return new DOMParser().parseFromString(await response.text(), "text/html");
   }
 
-  function macroByName(macros, name) {
-    return macros.find((m) => m.label.toLowerCase() === name.toLowerCase());
-  }
+  function macroByName(macros, name) { return macros.find((m) => m.label.toLowerCase() === name.toLowerCase()); }
+  function amount(m) { return `${m.current}${m.label === "Calories" ? " cal" : "g"} / ${m.goal}${m.label === "Calories" ? " cal" : "g"}`; }
 
-  function describeMacro(macro, kind = "normal") {
-    if (!macro) return "";
-    if (macro.percent >= 105) return `${macro.label} is over target (${macro.values}).`;
-    if (macro.percent >= 95) return `${macro.label} is basically met (${macro.values}).`;
-    if (macro.percent >= 80) return `${macro.label} is close (${macro.values}).`;
-    if (macro.percent < 50) return `${macro.label} is still low (${macro.values}).`;
-    return `${macro.label} has room left (${macro.values}).`;
+  function line(m) {
+    if (!m) return "";
+    if (m.percent >= 105) return `${m.label} is over target (${amount(m)}).`;
+    if (m.percent >= 95) return `${m.label} is basically nailed (${amount(m)}).`;
+    if (m.percent >= 80) return `${m.label} is close (${amount(m)}).`;
+    if (m.percent < 50) return `${m.label} is still pretty low (${amount(m)}).`;
+    return `${m.label} has room left (${amount(m)}).`;
   }
 
   async function analyzeToday() {
     try {
       const doc = await getTodayDocument();
       const macros = parseMacroCards(doc);
-      if (!macros.length) return "I can’t read today’s macro cards yet. Open Today once, then ask me again.";
-
+      if (!macros.length) return "I can’t read the Today page yet, bro. Open Today once and ask me again.";
       const calories = macroByName(macros, "Calories");
       const protein = macroByName(macros, "Protein");
-      const carbs = macroByName(macros, "Carbs");
-      const fat = macroByName(macros, "Fat");
       const sugar = macroByName(macros, "Sugar");
       const fiber = macroByName(macros, "Fiber");
-
+      const fat = macroByName(macros, "Fat");
+      const carbs = macroByName(macros, "Carbs");
       const notes = [];
-      if (calories) notes.push(describeMacro(calories));
-      if (protein) notes.push(describeMacro(protein));
-      if (sugar && sugar.percent >= 90) notes.push(`Sugar is ${sugar.percent >= 105 ? "over" : "getting high"} (${sugar.values}).`);
-      if (fiber && fiber.percent < 70) notes.push(`Fiber is low (${fiber.values}).`);
-      if (fat && fat.percent >= 105) notes.push(`Fat is over target (${fat.values}).`);
-      if (carbs && carbs.percent >= 105) notes.push(`Carbs are over target (${carbs.values}).`);
-
+      if (calories) notes.push(line(calories));
+      if (protein) notes.push(line(protein));
+      if (sugar && sugar.percent >= 85) notes.push(sugar.percent >= 105 ? `Sugar is high (${amount(sugar)}).` : `Sugar is creeping up (${amount(sugar)}).`);
+      if (fiber && fiber.percent < 70) notes.push(`Fiber is low (${amount(fiber)}).`);
+      if (fat && fat.percent >= 105) notes.push(`Fat is over (${amount(fat)}).`);
+      if (carbs && carbs.percent >= 105) notes.push(`Carbs are over (${amount(carbs)}).`);
       let next = "";
-      if (protein && protein.percent < 90) {
-        next = "Best move: prioritize protein next. The Meals tab can suggest something from available foods.";
-      } else if (sugar && sugar.percent >= 90) {
-        next = "Best move: keep the next meal lower sugar and focus on protein/fiber.";
-      } else if (calories && calories.percent >= 95) {
-        next = "Best move: you’re close on calories, so keep anything else small and protein-focused.";
-      } else {
-        next = "Best move: use Suggested next or Meals for a balanced next option based on what’s available.";
-      }
-
-      return `${notes.slice(0, 5).join(" ")} ${next}`;
+      if (protein && protein.percent < 90) next = "Move: protein first. Don’t overthink it — hit Meals and pick something simple.";
+      else if (sugar && sugar.percent >= 90) next = "Move: keep the next one lower-sugar and higher-protein. Macro tracking does not need to be a whole math exam.";
+      else if (calories && calories.percent >= 95) next = "Move: you’re close on calories, so keep the rest light and protein-focused.";
+      else next = "Move: you’ve got room. Use Meals for a solid next option from what’s actually available.";
+      return `Alright bro, here’s the day so far: ${notes.slice(0, 5).join(" ")} ${next}`;
     } catch (error) {
-      return "I couldn’t read today’s live totals yet. Try opening the Today page and asking again.";
+      return "I couldn’t read today’s totals yet. Open Today and ask me again — easy fix.";
     }
-  }
-
-  async function suggestNextMeal() {
-    const reflection = await analyzeToday();
-    return `${reflection} Tap Meals to see specific options from the foods marked available.`;
   }
 
   async function quickAnswer(question) {
     const q = question.toLowerCase();
-
-    if ((q.includes("how") && q.includes("doing")) || q.includes("today") || q.includes("day so far")) {
-      return analyzeToday();
-    }
-    if (q.includes("what") && q.includes("eat")) {
-      return suggestNextMeal();
-    }
-    if (q.includes("goal") || q.includes("goals")) {
-      return "Tap the settings gear to view or change calorie and macro goals. Keep changes simple and only adjust goals when progress trends say it makes sense.";
-    }
-    if (q.includes("protein")) {
-      const doc = await getTodayDocument().catch(() => null);
-      const protein = doc ? macroByName(parseMacroCards(doc), "Protein") : null;
-      if (protein) return `${describeMacro(protein)} If protein is low, use Meals for ideas or log something protein-heavy like eggs, Greek yogurt, chicken, tuna, lean beef, or a smoothie.`;
-      return "Protein progress is shown on Today. If protein is low, use Meals for ideas or log a protein-heavy meal.";
-    }
-    if (q.includes("scan")) {
-      return "Tap Scan food, take a clear photo of either the barcode or Nutrition Facts label, then confirm the food. On the confirm screen you can choose Add to fridge, I ate this today, or Both.";
-    }
-    if (q.includes("custom") || q.includes("manual") || q.includes("smoothie") || q.includes("homemade")) {
-      return "Go to Foods, tap Add custom food, then enter the serving size and nutrition. This is best for smoothies, homemade dinners, or regular meals you already know.";
-    }
-    if (q.includes("fridge") || q.includes("foods") || q.includes("saved")) {
-      return "Foods is where saved items live. Search saved foods at the top, scan new foods, add custom foods, or open the ⋯ menu on a saved food to change availability or remove it.";
-    }
-    if (q.includes("history") || q.includes("progress") || q.includes("week") || q.includes("yesterday")) {
-      return "Progress shows recent daily totals and weight entries. The next update will make it easier to tap a day and review exactly what was eaten that day.";
-    }
-    if (q.includes("score") || q.includes("health")) {
-      return "The health score uses barcode nutrition data when available, including Nutri-Score and NOVA processing info from OpenFoodFacts. If barcode data is missing, it uses the scanned nutrition values like calories, sugar, fat, fiber, protein, and sodium when available.";
-    }
-
+    if ((q.includes("how") && q.includes("doing")) || q.includes("today") || q.includes("day so far")) return analyzeToday();
+    if (q.includes("what") && q.includes("eat")) return `${await analyzeToday()} The Meals tab is the move for actual options.`;
+    if (q.includes("goal")) return "Tap the gear to adjust goals. Keep it chill though — change targets based on trends, not one random weird day.";
+    if (q.includes("protein")) return "Protein is usually the main macro to save first. If it’s low, go simple: eggs, Greek yogurt, chicken, tuna, lean beef, or a smoothie. Easy win.";
+    if (q.includes("sugar")) return "Sugar is sneaky. If it’s already high, next meal should be protein + fiber and less sweet stuff. Nothing dramatic, just clean up the next move.";
+    if (q.includes("scan")) return "Tap Scan food, take a clear barcode or Nutrition Facts photo, then confirm it. If confidence looks sketchy, double-check it before saving.";
+    if (q.includes("custom") || q.includes("manual") || q.includes("smoothie") || q.includes("homemade")) return "Use Add custom food for homemade stuff, smoothies, or regular meals. Save it once, and future logging gets way less annoying.";
+    if (q.includes("fridge") || q.includes("foods") || q.includes("saved")) return "Foods is your personal food library. Save what you actually use, mark what’s available, and Meals can suggest from that.";
+    if (q.includes("history") || q.includes("progress") || q.includes("edit") || q.includes("delete") || q.includes("yesterday")) return "Go Progress, tap a day, then edit or delete the meal. Bad logs happen, bro — fix it and move on.";
+    if (q.includes("score") || q.includes("health")) return "Health score is a quick quality check. Useful, but don’t worship the number. Calories, macros, and confidence still matter.";
     return FALLBACK_TEXT;
   }
 
@@ -126,62 +86,23 @@
   function addFallbackPrompts(list, form, input) {
     const wrap = document.createElement("div");
     wrap.className = "assistant-suggestions";
-    wrap.innerHTML = `
-      <button type="button">How am I doing today?</button>
-      <button type="button">What should I eat next?</button>
-      <button type="button">How do I scan food?</button>
-      <button type="button">How do I add a custom food?</button>
-      <button type="button">Why is the health score low?</button>
-    `;
-
-    wrap.querySelectorAll("button").forEach((button) => {
-      button.addEventListener("click", () => {
-        input.value = button.textContent.trim();
-        form.requestSubmit();
-      });
-    });
-
+    wrap.innerHTML = `<button type="button">How am I doing today?</button><button type="button">What should I eat next?</button><button type="button">Is sugar too high?</button><button type="button">How do I scan food?</button><button type="button">How do I edit a past meal?</button>`;
+    wrap.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => { input.value = button.textContent.trim(); form.requestSubmit(); }));
     list.appendChild(wrap);
     list.scrollTop = list.scrollHeight;
   }
 
   function buildAssistant() {
     if (document.querySelector(".assistant-panel")) return;
-
     const panel = document.createElement("aside");
     panel.className = "assistant-panel";
     panel.setAttribute("aria-hidden", "true");
-    panel.innerHTML = `
-      <div class="assistant-sheet">
-        <div class="assistant-head">
-          <div>
-            <strong>Food assistant</strong>
-            <span>Read-only helper</span>
-          </div>
-          <button class="icon-button" type="button" data-assistant-close aria-label="Close assistant">×</button>
-        </div>
-        <div class="assistant-prompts">
-          <button type="button">How am I doing today?</button>
-          <button type="button">What should I eat next?</button>
-          <button type="button">How do I scan food?</button>
-          <button type="button">How do I add a custom food?</button>
-        </div>
-        <div class="assistant-messages" aria-live="polite"></div>
-        <form class="assistant-form">
-          <input class="input" name="question" placeholder="Ask about progress, foods, goals..." autocomplete="off" />
-          <button class="button primary" type="submit">Ask</button>
-        </form>
-      </div>
-    `;
-
+    panel.innerHTML = `<div class="assistant-sheet"><div class="assistant-head"><div><strong>Macro buddy</strong><span>Tracking does not have to be overwhelming</span></div><button class="icon-button" type="button" data-assistant-close aria-label="Close assistant">×</button></div><div class="assistant-prompts"><button type="button">How am I doing today?</button><button type="button">What should I eat next?</button><button type="button">Is sugar too high?</button><button type="button">How do I edit a past meal?</button></div><div class="assistant-messages" aria-live="polite"></div><form class="assistant-form"><input class="input" name="question" placeholder="Ask me like a normal person..." autocomplete="off" /><button class="button primary" type="submit">Ask</button></form></div>`;
     document.body.appendChild(panel);
-
     const messages = panel.querySelector(".assistant-messages");
     const form = panel.querySelector(".assistant-form");
     const input = form.querySelector("input");
-
-    addMessage(messages, "bot", "Ask me how the day is going, what to eat next, or how to use scanning/custom foods.");
-
+    addMessage(messages, "bot", "Yo — I’ll keep this simple. Ask me how the day’s going, what to eat next, or what looks off. Macro tracking doesn’t need to feel like homework.");
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const question = input.value.trim();
@@ -190,10 +111,9 @@
       input.value = "";
       const loading = document.createElement("div");
       loading.className = "assistant-message bot assistant-loading";
-      loading.textContent = "Checking today...";
+      loading.textContent = "One sec, checking the day...";
       messages.appendChild(loading);
       messages.scrollTop = messages.scrollHeight;
-
       window.setTimeout(async () => {
         const answer = await quickAnswer(question);
         loading.remove();
@@ -201,26 +121,9 @@
         if (answer === FALLBACK_TEXT) addFallbackPrompts(messages, form, input);
       }, 120);
     });
-
-    panel.querySelectorAll(".assistant-prompts button").forEach((button) => {
-      button.addEventListener("click", () => {
-        input.value = button.textContent.trim();
-        form.requestSubmit();
-      });
-    });
-
-    panel.querySelector("[data-assistant-close]").addEventListener("click", () => {
-      panel.classList.remove("open");
-      panel.setAttribute("aria-hidden", "true");
-    });
-
-    document.querySelectorAll("[data-assistant-open]").forEach((button) => {
-      button.addEventListener("click", () => {
-        panel.classList.add("open");
-        panel.setAttribute("aria-hidden", "false");
-        window.setTimeout(() => input.focus(), 80);
-      });
-    });
+    panel.querySelectorAll(".assistant-prompts button").forEach((button) => button.addEventListener("click", () => { input.value = button.textContent.trim(); form.requestSubmit(); }));
+    panel.querySelector("[data-assistant-close]").addEventListener("click", () => { panel.classList.remove("open"); panel.setAttribute("aria-hidden", "true"); });
+    document.querySelectorAll("[data-assistant-open]").forEach((button) => button.addEventListener("click", () => { panel.classList.add("open"); panel.setAttribute("aria-hidden", "false"); window.setTimeout(() => input.focus(), 80); }));
   }
 
   document.addEventListener("DOMContentLoaded", buildAssistant);
