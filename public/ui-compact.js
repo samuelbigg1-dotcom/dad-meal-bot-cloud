@@ -11,6 +11,110 @@
     return link;
   }
 
+  function submitHiddenForm(action, fields) {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = action;
+
+    for (const [name, value] of Object.entries(fields)) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  function setScanStatus(action, message) {
+    const status = action.querySelector("small");
+    if (status) status.textContent = message;
+  }
+
+  async function handleUnifiedFoodPhoto(file, action) {
+    if (!file) return;
+    if (typeof fileToCompressedDataUrl !== "function") throw new Error("Photo compressor is not loaded.");
+    if (typeof encodeFoodPayload !== "function") throw new Error("Food encoder is not loaded.");
+
+    setScanStatus(action, "Reading photo...");
+    const imageDataUrl = await fileToCompressedDataUrl(file);
+
+    setScanStatus(action, "Checking for barcode...");
+    try {
+      const barcodeResponse = await fetch("/foods/barcode-image-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl })
+      });
+      const barcodeData = await barcodeResponse.json().catch(() => ({}));
+      const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
+
+      if (barcodeResponse.ok && barcode) {
+        setScanStatus(action, `Barcode found: ${barcode}`);
+        submitHiddenForm("/foods/barcode", { barcode });
+        return;
+      }
+    } catch (error) {
+      // If barcode reading fails, try the same photo as a nutrition label.
+    }
+
+    setScanStatus(action, "Reading Nutrition Facts...");
+    const labelResponse = await fetch("/foods/label-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageDataUrl })
+    });
+    const labelData = await labelResponse.json().catch(() => ({}));
+
+    if (!labelResponse.ok || !labelData.food) {
+      throw new Error(labelData.error || "Could not read this as a barcode or Nutrition Facts label.");
+    }
+
+    setScanStatus(action, "Opening confirmation...");
+    submitHiddenForm("/foods/confirm-scanned-label", { food: encodeFoodPayload(labelData.food) });
+  }
+
+  function makeUnifiedScanAction() {
+    const action = document.createElement("button");
+    action.className = "quick-action unified-scan-action";
+    action.type = "button";
+    action.innerHTML = `<span class="quick-action-icon">▥</span><span><strong>Scan food</strong><small>Barcode or label</small></span>`;
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.capture = "environment";
+    input.className = "unified-scan-input";
+    action.appendChild(input);
+
+    action.addEventListener("click", (event) => {
+      if (event.target === input) return;
+      event.preventDefault();
+      const ok = window.confirm("Take a clear photo of either a barcode or the Nutrition Facts label. The app will figure out which one it is.");
+      if (!ok) return;
+      input.value = "";
+      input.click();
+    });
+
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      action.disabled = true;
+      try {
+        await handleUnifiedFoodPhoto(file, action);
+      } catch (error) {
+        setScanStatus(action, error.message || "Scan failed. Try again.");
+        action.disabled = false;
+        input.value = "";
+      }
+    });
+
+    return action;
+  }
+
   function compactDashboard() {
     const hero = document.querySelector(".card.hero");
     if (!hero || document.querySelector(".quick-actions-card")) return;
@@ -29,7 +133,7 @@
     const grid = document.createElement("div");
     grid.className = "quick-action-grid";
     grid.append(
-      makeAction({ href: "/foods", label: "Scan food", detail: "Barcode or label", icon: "▥" }),
+      makeUnifiedScanAction(),
       makeAction({ href: "/log", label: "Log meal", detail: "Type meal", icon: "+" }),
       makeAction({ href: "/recommendations", label: "Recommend", detail: "Next meal", icon: "★" }),
       makeAction({ href: "/history", label: "History", detail: "Progress", icon: "↗" })
