@@ -44,7 +44,7 @@ async function createStructuredMeal(messages) {
 
   const completion = await getOpenAIClient().chat.completions.create({
     model,
-    temperature: 0.1,
+    temperature: 0,
     messages,
     response_format: {
       type: "json_schema",
@@ -61,7 +61,25 @@ export async function parseMealWithAI(rawText, selectedMealType = "meal") {
   return createStructuredMeal([
     {
       role: "system",
-      content: "You parse meal log messages into JSON. Extract every food item. The selected meal type is provided separately, so do not require the user to type breakfast/lunch/dinner. If the user says a known preset like smoothie, use one item named Dad Smoothie. Important: preserve compound foods as compound foods. For example, blueberry muffin means blueberry muffin, not blueberries; banana bread means banana bread, not bananas; protein bar means protein bar, not protein powder. Use realistic nutrition estimates only when the food may not exist in the user's saved food database. If quantity is vague, choose a normal serving and mark confidence low. Do not give medical advice."
+      content: `You parse meal log messages into JSON for a macro tracker.
+
+Core rules:
+- Extract every food item.
+- The selected meal type is provided separately, so do not require the user to type breakfast/lunch/dinner.
+- Preserve compound foods as compound foods. Blueberry muffin means blueberry muffin, not blueberries. Banana bread means banana bread, not bananas. Protein bar means protein bar, not protein powder.
+- If the user says a known preset like smoothie, use one item named Dad Smoothie.
+- Do not give medical advice.
+
+Accuracy rules:
+- Restaurant, fast-food, coffee-shop, and branded items must be treated as branded items, not generic homemade foods.
+- If the brand/restaurant is named, include it in food_name.
+- Use official/common branded nutrition if you know it confidently.
+- Starbucks Crispy Grilled Cheese on Sourdough is about 520 calories per sandwich. If the user says 2, total it as about 1040 calories.
+- Tim Hortons medium Original Iced Capp made with cream is about 330 to 360 calories per medium drink. Do not parse it as a generic cappuccino.
+- If size/customization is unclear for a restaurant drink, use the common/default version and set confidence to low or medium with a note explaining what assumption was used.
+- Never return an obviously low generic estimate for branded restaurant foods. If unsure, err toward the official branded item estimate and mark confidence low.
+- If quantity is vague, choose a normal serving and mark confidence low.
+- For chained/restaurant foods where nutrition varies by region or customization, put that uncertainty in note.`
     },
     { role: "user", content: JSON.stringify({ selectedMealType, mealText: rawText }) }
   ]);
