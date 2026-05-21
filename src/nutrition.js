@@ -28,6 +28,40 @@ function unitEquivalent(parsedUnit, baseUnit, parsedRaw, baseRaw) {
   return false;
 }
 
+function volumeToCups(qty, unit) {
+  const clean = String(unit || "").toLowerCase().trim();
+  if (!Number.isFinite(qty)) return null;
+  if (["cup", "cups", "c"].includes(clean)) return qty;
+  if (["tbsp", "tablespoon", "tablespoons"].includes(clean)) return qty / 16;
+  if (["tsp", "teaspoon", "teaspoons"].includes(clean)) return qty / 48;
+  if (["fl oz", "fluid ounce", "fluid ounces", "floz", "oz"].includes(clean)) return qty / 8;
+  if (["ml", "milliliter", "milliliters"].includes(clean)) return qty / 236.588;
+  return null;
+}
+
+function smoothieServingCups(food) {
+  const name = normalizeText(food.name || "");
+  if (!name.includes("smoothie")) return null;
+  // One Dad Smoothie is a full blender serving, usually around 24-28 oz.
+  // Use the midpoint so partial cup entries do not count as the whole smoothie.
+  return 26 / 8;
+}
+
+function specialPortionFactor(parsedItem, matchedFood) {
+  const smoothieCups = smoothieServingCups(matchedFood);
+  if (smoothieCups) {
+    const cups = volumeToCups(Number(parsedItem.quantity || 1), parsedItem.unit);
+    if (cups !== null && cups > 0) {
+      return {
+        factor: cups / smoothieCups,
+        confidencePercent: 82,
+        note: `Matched known food: ${matchedFood.name}. Portion estimate from smoothie size.`
+      };
+    }
+  }
+  return null;
+}
+
 export function findFoodMatch(parsedItem, foods) {
   const itemName = normalizeText(parsedItem.food_name);
   const compoundWords = new Set(["muffin", "muffins", "bread", "cake", "cookie", "cookies", "bar", "bars", "pie", "pancake", "pancakes", "waffle", "waffles", "cereal", "granola"]);
@@ -68,7 +102,12 @@ export function scaleKnownFood(parsedItem, matchedFood) {
   let note = "";
   let confidencePercent = 94;
 
-  if (unitEquivalent(parsedUnit, baseUnit, parsedItem.unit, matchedFood.base_unit) && baseQty !== 0) {
+  const special = specialPortionFactor(parsedItem, matchedFood);
+  if (special) {
+    factor = special.factor;
+    confidencePercent = special.confidencePercent;
+    note = special.note;
+  } else if (unitEquivalent(parsedUnit, baseUnit, parsedItem.unit, matchedFood.base_unit) && baseQty !== 0) {
     factor = qty / baseQty;
     note = `Matched known food: ${matchedFood.name}.`;
   } else {
