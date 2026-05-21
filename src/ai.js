@@ -205,11 +205,12 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
   const schema = {
     type: "object",
     additionalProperties: false,
-    required: ["name", "baseQty", "baseUnit", "calories", "protein", "carbs", "fat", "sugar", "fiber"],
+    required: ["name", "baseQty", "baseUnit", "servingText", "calories", "protein", "carbs", "fat", "sugar", "fiber"],
     properties: {
       name: { type: "string" },
       baseQty: { type: "number" },
       baseUnit: { type: "string" },
+      servingText: { type: "string" },
       calories: { type: "number" },
       protein: { type: "number" },
       carbs: { type: "number" },
@@ -223,9 +224,9 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
     model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
     temperature: 0,
     messages: [
-      { role: "system", content: "You read Nutrition Facts labels from images. Return nutrition per serving. If a value is missing, use 0. Do not invent a brand name. If the food name is not visible, use 'Scanned packaged food'." },
+      { role: "system", content: "You read Nutrition Facts labels from images. Return nutrition per serving. If a value is missing, use 0. Do not invent a brand name. If the food name is not visible, use 'Scanned packaged food'. Preserve the printed serving size text exactly in servingText, such as '3/4 cup' or '175 g'. For baseQty/baseUnit, convert common fractions exactly: 1/4 cup = 0.25 cup, 1/2 cup = 0.5 cup, 2/3 cup = 0.667 cup, 3/4 cup = 0.75 cup. Do not round 3/4 cup to 0.8 cup." },
       { role: "user", content: [
-        { type: "text", text: "Read this nutrition label. Extract calories, protein, carbs, fat, sugar, and fiber per serving. Also extract serving size as baseQty and baseUnit." },
+        { type: "text", text: "Read this nutrition label. Extract calories, protein, carbs, fat, sugar, and fiber per serving. Extract servingText exactly as printed. Also extract numeric baseQty and baseUnit for the serving size without rounding fractions." },
         { type: "image_url", image_url: { url: imageDataUrl } }
       ] }
     ],
