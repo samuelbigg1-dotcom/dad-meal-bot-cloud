@@ -52,6 +52,29 @@
     });
   }
 
+  function foodIconAndKind(name, detail) {
+    const value = `${name} ${detail}`.toLowerCase();
+    if (/yogurt|cottage|milk|cheese|fairlife|dairy/.test(value)) return ["🥣", "dairy"];
+    if (/chicken|turkey|beef|steak|salmon|tuna|egg|eggs|shrimp|pork|tofu|protein/.test(value)) return ["🍗", "protein"];
+    if (/rice|potato|oat|bread|toast|pasta|wrap|tortilla|quinoa|cereal|bagel/.test(value)) return ["🍚", "carb"];
+    if (/apple|banana|berries|berry|orange|fruit|mango|grape|pineapple/.test(value)) return ["🍎", "fruit"];
+    if (/broccoli|spinach|lettuce|salad|tomato|pepper|carrot|cucumber|vegetable|zucchini/.test(value)) return ["🥦", "vegetable"];
+    if (/peanut butter|almond|nuts|avocado|oil|butter/.test(value)) return ["🥑", "fat"];
+    if (/smoothie|shake/.test(value)) return ["🥤", "dairy"];
+    return ["🍽️", "other"];
+  }
+
+  function addFoodThumbnails() {
+    document.querySelectorAll(".food-row").forEach((row) => {
+      if (row.dataset.foodIcon) return;
+      const name = text(row.querySelector("strong"));
+      const detail = text(row.querySelector("p"));
+      const [icon, kind] = foodIconAndKind(name, detail);
+      row.dataset.foodIcon = icon;
+      row.dataset.foodKind = kind;
+    });
+  }
+
   function fixSavedFoodLiveSearch() {
     const input = document.querySelector(".food-search");
     const list = document.querySelector(".food-list");
@@ -185,10 +208,11 @@
     injectStyles();
     removeExportCard();
     patchConfirmServing();
+    addFoodThumbnails();
     fixSavedFoodLiveSearch();
     polishRecommendations();
   }
 
   document.addEventListener("DOMContentLoaded", run);
-  window.addEventListener("pageshow", () => setTimeout(fixSavedFoodLiveSearch, 0));
+  window.addEventListener("pageshow", () => setTimeout(() => { addFoodThumbnails(); fixSavedFoodLiveSearch(); }, 0));
 })();
