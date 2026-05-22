@@ -39,6 +39,8 @@
       .compact-ui .secondary-note { font-size: 12px; color: var(--muted); text-align: center; }
       .recommended-meals-card .meal-slot-grid { display:grid; gap:8px; grid-template-columns: repeat(2, minmax(0,1fr)); margin: 12px 0; }
       .recommended-meals-card label { border:1px solid var(--line); border-radius:16px; padding:10px; background:var(--card2); font-weight:900; display:flex; gap:8px; align-items:center; }
+      .food-row.search-hidden { display: none !important; }
+      .food-search-count { margin-top: 8px; font-size: 13px; color: var(--muted); }
     `;
     document.head.appendChild(style);
   }
@@ -48,6 +50,41 @@
       const heading = text(card.querySelector("h2"));
       if (heading.toLowerCase() === "export") card.remove();
     });
+  }
+
+  function fixSavedFoodLiveSearch() {
+    const input = document.querySelector(".food-search");
+    const list = document.querySelector(".food-list");
+    if (!input || !list || input.dataset.liveSearchFixed === "true") return;
+    input.dataset.liveSearchFixed = "true";
+
+    let count = document.querySelector(".food-search-count");
+    if (!count) {
+      count = document.createElement("p");
+      count.className = "food-search-count";
+      input.insertAdjacentElement("afterend", count);
+    }
+
+    const apply = () => {
+      const query = input.value.trim().toLowerCase();
+      const rows = [...list.querySelectorAll(".food-row")];
+      let shown = 0;
+      rows.forEach((row) => {
+        const name = text(row.querySelector("strong")).toLowerCase();
+        const allText = text(row).toLowerCase();
+        const match = !query || name.includes(query) || allText.includes(query);
+        row.classList.toggle("search-hidden", !match);
+        row.hidden = !match;
+        if (match) shown += 1;
+      });
+      count.textContent = query ? `${shown} matching food${shown === 1 ? "" : "s"}` : "";
+    };
+
+    input.addEventListener("input", apply);
+    input.addEventListener("keyup", apply);
+    input.addEventListener("search", apply);
+    input.addEventListener("change", apply);
+    apply();
   }
 
   function decodeFoodPayload(payload) {
@@ -148,8 +185,10 @@
     injectStyles();
     removeExportCard();
     patchConfirmServing();
+    fixSavedFoodLiveSearch();
     polishRecommendations();
   }
 
   document.addEventListener("DOMContentLoaded", run);
+  window.addEventListener("pageshow", () => setTimeout(fixSavedFoodLiveSearch, 0));
 })();
