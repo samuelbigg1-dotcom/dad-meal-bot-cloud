@@ -211,6 +211,174 @@
 .compact-ui .bottom-nav { padding-top: 8px; }
 .compact-ui .bottom-nav a { padding: 9px 5px; }
 
+/* Product-style simplification pass */
+.compact-ui {
+  --simple-radius: 22px;
+  --simple-soft: rgba(80, 55, 40, .075);
+}
+.compact-ui .topbar {
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+.compact-ui .topbar h1 { letter-spacing: -.055em; }
+.compact-ui .eyebrow { letter-spacing: .18em; font-size: 11px; }
+.compact-ui .card {
+  box-shadow: none !important;
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+}
+.compact-ui .card.hero,
+.compact-ui .dashboard-hero,
+.compact-ui .rec-page-hero {
+  border-radius: 30px;
+  padding: 24px;
+}
+.compact-ui .card.hero p,
+.compact-ui .quick-action small,
+.compact-ui .compact-card > p.muted,
+.compact-ui .foods-hero p,
+.compact-ui .quick-actions-card .section-head span,
+.compact-ui .foods-primary-scan .section-head span,
+.compact-ui .saved-foods-card > p,
+.compact-ui .manual-card > p,
+.compact-ui .fallback-scans,
+.compact-ui .food-search-count:empty { display: none !important; }
+.compact-ui .quick-actions-card,
+.compact-ui .foods-primary-scan {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.compact-ui .quick-actions-card .section-head,
+.compact-ui .foods-primary-scan .section-head { display: none; }
+.compact-ui .quick-action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.compact-ui .quick-action {
+  border-radius: 18px;
+  min-height: 72px;
+  padding: 13px 14px;
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  box-shadow: none;
+}
+.compact-ui .quick-action strong { font-size: 15px; letter-spacing: -.02em; }
+.compact-ui .quick-action small { margin: 0; }
+.compact-ui .quick-action-icon {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  color: var(--accent);
+  font-size: 15px;
+}
+.compact-ui .quick-action:first-child,
+.compact-ui .unified-scan-action.big {
+  background: var(--accent);
+  color: var(--primary-text);
+}
+.compact-ui .quick-action:first-child .quick-action-icon,
+.compact-ui .unified-scan-action.big .quick-action-icon {
+  background: rgba(255,255,255,.18);
+  color: var(--primary-text);
+}
+.compact-ui .macro-grid {
+  gap: 8px;
+}
+.compact-ui .macro-card {
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: none;
+}
+.compact-ui .macro-card .macro-values span:last-child { color: var(--muted); }
+.compact-ui .foods-hero { display: none; }
+.compact-ui .saved-foods-card {
+  padding: 20px;
+  border-radius: 28px;
+}
+.compact-ui .saved-foods-card h2 { font-size: 24px; letter-spacing: -.045em; }
+.compact-ui .saved-foods-card .food-search {
+  margin: 12px 0 14px;
+  border-radius: 18px;
+  min-height: 54px;
+  font-size: 16px;
+  background: var(--card);
+}
+.compact-ui .saved-foods-card .food-list {
+  display: grid;
+  gap: 7px;
+}
+.compact-ui .food-row {
+  min-height: 72px;
+  padding: 9px 10px;
+  border-radius: 18px;
+  grid-template-columns: 46px 1fr auto;
+  gap: 10px;
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+}
+.compact-ui .food-row::before {
+  content: attr(data-food-icon);
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card2));
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+  overflow: hidden;
+}
+.compact-ui .food-row[data-food-kind="protein"]::before { background: rgba(185,80,53,.12); }
+.compact-ui .food-row[data-food-kind="carb"]::before { background: rgba(199,148,71,.14); }
+.compact-ui .food-row[data-food-kind="fruit"]::before { background: rgba(209,140,74,.15); }
+.compact-ui .food-row[data-food-kind="vegetable"]::before { background: rgba(83,117,77,.14); }
+.compact-ui .food-row[data-food-kind="dairy"]::before { background: rgba(104,127,140,.12); }
+.compact-ui .food-row > div:first-of-type { min-width: 0; }
+.compact-ui .food-row strong {
+  font-size: 15px;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.compact-ui .food-row p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.compact-ui .food-action-menu summary {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border: 0;
+  background: color-mix(in srgb, var(--card2) 80%, var(--line));
+}
+.compact-ui .confirm-card,
+.compact-ui .page-confirm-food .content > .card:last-child {
+  border-radius: 30px;
+  padding: 22px;
+}
+.compact-ui .confirm-card h2 { font-size: 25px; letter-spacing: -.045em; }
+.compact-ui .confirm-card .list { gap: 8px; }
+.compact-ui .confirm-card .list-row {
+  border-radius: 18px;
+  background: var(--card);
+}
+.compact-ui .meal-suggestion-top h2 { font-size: 26px; }
+.compact-ui .rec-card.polished-rec-card { border-radius: 28px; padding: 18px; }
+.compact-ui .bottom-nav {
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  box-shadow: none;
+}
+.compact-ui .bottom-nav a.active {
+  border-radius: 999px;
+}
+
 @media (max-width: 760px) {
   .compact-ui .macro-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -218,11 +386,14 @@
 @media (max-width: 640px) {
   .compact-ui .content { padding: 12px; gap: 12px; }
   .compact-ui .quick-action-grid,
-  .compact-ui .foods-quick-grid { grid-template-columns: 1fr; }
+  .compact-ui .foods-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .compact-ui .quick-action { min-height: 68px; }
   .compact-ui #editableNutritionFields { grid-template-columns: 1fr; }
   .compact-ui .food-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
   .compact-ui .food-actions form:last-child { grid-column: 1 / -1; }
   .compact-ui .topbar { align-items: flex-start; }
   .compact-ui .topbar-actions { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .compact-ui .card.hero,
+  .compact-ui .dashboard-hero,
+  .compact-ui .rec-page-hero { padding: 22px; }
 }
