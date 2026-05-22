@@ -84,29 +84,43 @@
     submitHiddenForm("/log/confirm", { payload });
   }
 
+  async function tryNutritionLabelScan(imageDataUrl, action) {
+    setScanStatus(action, "Reading Nutrition Facts...");
+    const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
+    const labelData = await labelResponse.json().catch(() => ({}));
+    if (!labelResponse.ok || !labelData.food) throw new Error(labelData.error || "Could not read Nutrition Facts.");
+    setScanStatus(action, "Opening confirmation...");
+    submitHiddenForm("/foods/confirm-scanned-label", { food: encodeFoodPayload(labelData.food) });
+    return true;
+  }
+
+  async function tryBarcodeScan(imageDataUrl, action) {
+    setScanStatus(action, "No label found — checking barcode...");
+    const barcodeResponse = await fetch("/foods/barcode-image-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
+    const barcodeData = await barcodeResponse.json().catch(() => ({}));
+    const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
+    if (!barcodeResponse.ok || !barcode) throw new Error(barcodeData.error || "Could not read this as a Nutrition Facts label or barcode.");
+    setScanStatus(action, `Barcode found: ${barcode}`);
+    submitHiddenForm("/foods/barcode", { barcode });
+    return true;
+  }
+
   async function handleUnifiedFoodPhoto(file, action) {
     if (!file) return;
     if (typeof fileToCompressedDataUrl !== "function") throw new Error("Photo tools are still loading. Try once more.");
     if (typeof encodeFoodPayload !== "function") throw new Error("Food tools are still loading. Try once more.");
     setScanStatus(action, "Reading photo...");
     const imageDataUrl = await fileToCompressedDataUrl(file);
-    setScanStatus(action, "Checking for barcode...");
     try {
-      const barcodeResponse = await fetch("/foods/barcode-image-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
-      const barcodeData = await barcodeResponse.json().catch(() => ({}));
-      const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
-      if (barcodeResponse.ok && barcode) { setScanStatus(action, `Barcode found: ${barcode}`); submitHiddenForm("/foods/barcode", { barcode }); return; }
-    } catch (error) {}
-    setScanStatus(action, "Reading Nutrition Facts...");
-    const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
-    const labelData = await labelResponse.json().catch(() => ({}));
-    if (!labelResponse.ok || !labelData.food) throw new Error(labelData.error || "Could not read this as a barcode or Nutrition Facts label.");
-    setScanStatus(action, "Opening confirmation...");
-    submitHiddenForm("/foods/confirm-scanned-label", { food: encodeFoodPayload(labelData.food) });
+      await tryNutritionLabelScan(imageDataUrl, action);
+      return;
+    } catch (labelError) {
+      await tryBarcodeScan(imageDataUrl, action);
+    }
   }
 
   function openUnifiedScan(action) {
-    const ok = window.confirm("Take a clear photo of either a barcode or the Nutrition Facts label.");
+    const ok = window.confirm("Take a clear photo of the Nutrition Facts label or barcode.");
     if (!ok) return;
     const input = getUnifiedScanInput();
     input.value = "";
@@ -124,7 +138,7 @@
     const action = document.createElement("button");
     action.className = `quick-action unified-scan-action${big ? " big" : ""}`;
     action.type = "button";
-    action.innerHTML = `<span class="quick-action-icon">▥</span><span><strong>Scan food</strong><small>Barcode or Nutrition Facts</small></span>`;
+    action.innerHTML = `<span class="quick-action-icon">▥</span><span><strong>Scan food</strong><small>Nutrition Facts or barcode</small></span>`;
     action.addEventListener("click", () => openUnifiedScan(action));
     return action;
   }
