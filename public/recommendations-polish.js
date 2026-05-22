@@ -54,19 +54,35 @@
 
   function foodIconAndKind(name, detail) {
     const value = `${name} ${detail}`.toLowerCase();
+    if (/broccoli/.test(value)) return ["🥦", "vegetable"];
+    if (/carrot/.test(value)) return ["🥕", "vegetable"];
+    if (/spinach|lettuce|salad|vegetable|zucchini|cucumber|pepper|tomato/.test(value)) return ["🥬", "vegetable"];
+    if (/banana/.test(value)) return ["🍌", "fruit"];
+    if (/apple/.test(value)) return ["🍎", "fruit"];
+    if (/berries|berry/.test(value)) return ["🫐", "fruit"];
+    if (/orange|mango|grape|pineapple|fruit/.test(value)) return ["🍊", "fruit"];
+    if (/egg|eggs/.test(value)) return ["🥚", "protein"];
+    if (/chicken|turkey/.test(value)) return ["🍗", "protein"];
+    if (/beef|steak|pork/.test(value)) return ["🥩", "protein"];
+    if (/salmon|tuna|shrimp|fish/.test(value)) return ["🐟", "protein"];
+    if (/tofu|protein/.test(value)) return ["🍽️", "protein"];
     if (/yogurt|cottage|milk|cheese|fairlife|dairy/.test(value)) return ["🥣", "dairy"];
-    if (/chicken|turkey|beef|steak|salmon|tuna|egg|eggs|shrimp|pork|tofu|protein/.test(value)) return ["🍗", "protein"];
-    if (/rice|potato|oat|bread|toast|pasta|wrap|tortilla|quinoa|cereal|bagel/.test(value)) return ["🍚", "carb"];
-    if (/apple|banana|berries|berry|orange|fruit|mango|grape|pineapple/.test(value)) return ["🍎", "fruit"];
-    if (/broccoli|spinach|lettuce|salad|tomato|pepper|carrot|cucumber|vegetable|zucchini/.test(value)) return ["🥦", "vegetable"];
-    if (/peanut butter|almond|nuts|avocado|oil|butter/.test(value)) return ["🥑", "fat"];
     if (/smoothie|shake/.test(value)) return ["🥤", "dairy"];
+    if (/rice/.test(value)) return ["🍚", "carb"];
+    if (/potato/.test(value)) return ["🥔", "carb"];
+    if (/oat|cereal|granola/.test(value)) return ["🥣", "carb"];
+    if (/bread|toast|bagel|muffin/.test(value)) return ["🥯", "carb"];
+    if (/pasta|wrap|tortilla|quinoa/.test(value)) return ["🍝", "carb"];
+    if (/peanut butter|almond|nuts/.test(value)) return ["🥜", "fat"];
+    if (/avocado/.test(value)) return ["🥑", "fat"];
+    if (/olive oil|mct oil|oil|butter/.test(value)) return ["🫒", "fat"];
+    if (/honey|syrup|jam/.test(value)) return ["🍯", "carb"];
+    if (/coca|cola|soda|pop|juice|drink/.test(value)) return ["🥤", "other"];
     return ["🍽️", "other"];
   }
 
   function addFoodThumbnails() {
     document.querySelectorAll(".food-row").forEach((row) => {
-      if (row.dataset.foodIcon) return;
       const name = text(row.querySelector("strong"));
       const detail = text(row.querySelector("p"));
       const [icon, kind] = foodIconAndKind(name, detail);
