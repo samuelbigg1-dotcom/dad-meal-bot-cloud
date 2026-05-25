@@ -4,6 +4,59 @@
   function text(el) { return el?.textContent?.replace(/\s+/g, " ").trim() || ""; }
   function nums(value) { return (String(value || "").match(/-?\d+(?:\.\d+)?/g) || []).map(Number); }
 
+  function isBlankScannedFood(food) {
+    if (!food) return true;
+    const numbers = [food.calories, food.protein, food.carbs, food.fat, food.sugar, food.fiber].map((v) => Number(v || 0));
+    const total = numbers.reduce((sum, n) => sum + (Number.isFinite(n) ? Math.abs(n) : 0), 0);
+    const name = String(food.name || "").toLowerCase().trim();
+    const genericName = !name || name === "scanned packaged food" || name === "packaged food";
+    return total <= 0 || (genericName && Number(food.calories || 0) <= 0);
+  }
+
+  function decodePayload(value) {
+    try { return JSON.parse(decodeURIComponent(escape(atob(value)))); } catch (error) { return null; }
+  }
+
+  function installScanGuards() {
+    if (window.__scanZeroGuardInstalled) return;
+    window.__scanZeroGuardInstalled = true;
+
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async function guardedFetch(input, init) {
+      const response = await originalFetch(input, init);
+      const url = typeof input === "string" ? input : input?.url || "";
+      if (!url.includes("/foods/label-scan")) return response;
+      const clone = response.clone();
+      let data = null;
+      try { data = await clone.json(); } catch (error) { return response; }
+      if (response.ok && data?.food && isBlankScannedFood(data.food)) {
+        const body = JSON.stringify({ error: "That photo does not look like a readable Nutrition Facts label. Try a clearer label photo or scan the barcode." });
+        return new Response(body, { status: 422, headers: { "Content-Type": "application/json" } });
+      }
+      return response;
+    };
+  }
+
+  function blockBlankConfirmSave() {
+    const form = document.getElementById("confirm-package-form");
+    if (!form || form.dataset.blankGuard === "true") return;
+    form.dataset.blankGuard = "true";
+    form.addEventListener("submit", (event) => {
+      const hidden = form.querySelector("input[name='food']");
+      const food = hidden ? decodePayload(hidden.value) : null;
+      if (!isBlankScannedFood(food)) return;
+      event.preventDefault();
+      let warning = form.querySelector(".blank-scan-warning");
+      if (!warning) {
+        warning = document.createElement("p");
+        warning.className = "flash error blank-scan-warning";
+        warning.textContent = "This scan did not find real nutrition data, so it was not saved. Try a clearer Nutrition Facts label or scan the barcode.";
+        form.insertBefore(warning, form.firstChild);
+      }
+      warning.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, true);
+  }
+
   function parseMacroCards(doc) {
     return [...doc.querySelectorAll(".macro-card")].map((card) => {
       const label = text(card.querySelector(".macro-head span"));
@@ -126,5 +179,9 @@
     document.querySelectorAll("[data-assistant-open]").forEach((button) => button.addEventListener("click", () => { panel.classList.add("open"); panel.setAttribute("aria-hidden", "false"); window.setTimeout(() => input.focus(), 80); }));
   }
 
-  document.addEventListener("DOMContentLoaded", buildAssistant);
+  installScanGuards();
+  document.addEventListener("DOMContentLoaded", () => {
+    buildAssistant();
+    blockBlankConfirmSave();
+  });
 })();
