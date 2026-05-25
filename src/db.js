@@ -1,6 +1,7 @@
 import pg from "pg";
 import { DEFAULT_FOODS } from "./seedFoods.js";
 import { normalizeBarcodeFoodServing } from "./utils.js";
+import { resolveUserId, getContextUserId } from "./userContext.js";
 
 const { Pool } = pg;
 
@@ -15,6 +16,14 @@ export const pool = new Pool({
 
 export async function query(text, params = []) {
   return pool.query(text, params);
+}
+
+function userId(value) {
+  return resolveUserId(value);
+}
+
+function currentOwner() {
+  return getContextUserId();
 }
 
 export async function initDb() {
@@ -38,6 +47,7 @@ export async function initDb() {
   await query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS category TEXT DEFAULT '';`);
   await query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS is_pantry BOOLEAN NOT NULL DEFAULT true;`);
   await query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS include_in_recommendations BOOLEAN NOT NULL DEFAULT true;`);
+  await query(`ALTER TABLE foods ADD COLUMN IF NOT EXISTS owner_user_id TEXT;`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -53,6 +63,11 @@ export async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT;`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS users_google_id_unique ON users (google_id) WHERE google_id IS NOT NULL;`);
+  await query(`CREATE INDEX IF NOT EXISTS users_email_idx ON users (email);`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS meals (
@@ -104,39 +119,54 @@ export async function initDb() {
   `);
 
   for (const food of DEFAULT_FOODS) {
-    await addFood(food);
+    await addFood({ ...food, owner_user_id: null });
   }
 }
 
-export async function upsertUser({ userId, firstName = "Dad", timezone = "America/Vancouver" }) {
+export async function upsertUser({ userId: rawUserId, firstName = "Dad", timezone = "America/Vancouver", email = null, googleId = null, avatarUrl = null }) {
+  const id = userId(rawUserId);
   await query(`
-    INSERT INTO users (telegram_user_id, first_name, timezone)
-    VALUES ($1, $2, $3)
+    INSERT INTO users (telegram_user_id, first_name, timezone, email, google_id, avatar_url)
+    VALUES ($1, $2, $3, $4, $5, $6)
     ON CONFLICT (telegram_user_id)
-    DO UPDATE SET first_name = COALESCE(users.first_name, EXCLUDED.first_name);
-  `, [userId, firstName, timezone]);
+    DO UPDATE SET
+      first_name = COALESCE(EXCLUDED.first_name, users.first_name),
+      timezone = COALESCE(users.timezone, EXCLUDED.timezone),
+      email = COALESCE(EXCLUDED.email, users.email),
+      google_id = COALESCE(EXCLUDED.google_id, users.google_id),
+      avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url);
+  `, [id, firstName, timezone, email, googleId, avatarUrl]);
 }
 
-export async function getUser(userId) {
-  const result = await query(`SELECT * FROM users WHERE telegram_user_id = $1`, [userId]);
+export async function getUser(rawUserId) {
+  const result = await query(`SELECT * FROM users WHERE telegram_user_id = $1`, [userId(rawUserId)]);
   return result.rows[0] || null;
 }
 
-export async function getFoods() {
-  const result = await query(`SELECT * FROM foods ORDER BY name ASC`);
+export async function getFoods(rawUserId = null) {
+  const owner = userId(rawUserId || currentOwner() || "dad");
+  const result = await query(`
+    SELECT * FROM foods
+    WHERE owner_user_id IS NULL OR owner_user_id = $1
+    ORDER BY name ASC
+  `, [owner]);
   return result.rows;
 }
 
-export async function getRecommendationFoods() {
+export async function getRecommendationFoods(rawUserId = null) {
+  const owner = userId(rawUserId || currentOwner() || "dad");
   const result = await query(`
     SELECT * FROM foods
-    WHERE is_pantry = true AND include_in_recommendations = true
+    WHERE (owner_user_id IS NULL OR owner_user_id = $1)
+      AND is_pantry = true
+      AND include_in_recommendations = true
     ORDER BY category ASC, name ASC
-  `);
+  `, [owner]);
   return result.rows;
 }
 
 export async function addFood(food) {
+  const owner = food.owner_user_id === null ? null : (food.owner_user_id || currentOwner());
   const { food: normalizedFood } = normalizeBarcodeFoodServing({
     ...food,
     baseUnit: food.base_unit || food.baseUnit,
@@ -149,9 +179,9 @@ export async function addFood(food) {
 
   const result = await query(`
     INSERT INTO foods
-      (name, aliases, base_qty, base_unit, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, category, is_pantry, include_in_recommendations)
+      (name, aliases, base_qty, base_unit, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, category, is_pantry, include_in_recommendations, owner_user_id)
     VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     ON CONFLICT (name)
     DO UPDATE SET
       aliases = EXCLUDED.aliases,
@@ -165,7 +195,8 @@ export async function addFood(food) {
       fiber_g = EXCLUDED.fiber_g,
       category = COALESCE(NULLIF(EXCLUDED.category, ''), foods.category),
       is_pantry = EXCLUDED.is_pantry,
-      include_in_recommendations = EXCLUDED.include_in_recommendations
+      include_in_recommendations = EXCLUDED.include_in_recommendations,
+      owner_user_id = COALESCE(foods.owner_user_id, EXCLUDED.owner_user_id)
     RETURNING *;
   `, [
     normalizedFood.name,
@@ -180,7 +211,8 @@ export async function addFood(food) {
     Number(normalizedFood.fiber_g ?? normalizedFood.fiber),
     normalizedFood.category || "",
     normalizedFood.is_pantry ?? true,
-    normalizedFood.include_in_recommendations ?? true
+    normalizedFood.include_in_recommendations ?? true,
+    owner
   ]);
 
   return result.rows[0];
@@ -200,7 +232,7 @@ export async function deleteFood(id) {
   try {
     await client.query("BEGIN");
     await client.query(`UPDATE meal_items SET matched_food_id = NULL WHERE matched_food_id = $1;`, [id]);
-    await client.query(`DELETE FROM foods WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM foods WHERE id = $1 AND (owner_user_id IS NULL OR owner_user_id = $2)`, [id, currentOwner()]);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -210,14 +242,15 @@ export async function deleteFood(id) {
   }
 }
 
-async function insertMealWithClient(client, { userId, mealDate, mealType, rawMessage, totals, items, editedFromMealId = null }) {
+async function insertMealWithClient(client, { userId: rawUserId, mealDate, mealType, rawMessage, totals, items, editedFromMealId = null }) {
+  const uid = userId(rawUserId);
   const mealResult = await client.query(`
     INSERT INTO meals
       (telegram_user_id, meal_date, meal_type, raw_message, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, edited_from_meal_id)
     VALUES
       ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     RETURNING *;
-  `, [userId, mealDate, mealType || "meal", rawMessage, totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.sugar_g, totals.fiber_g, editedFromMealId]);
+  `, [uid, mealDate, mealType || "meal", rawMessage, totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.sugar_g, totals.fiber_g, editedFromMealId]);
 
   const meal = mealResult.rows[0];
 
@@ -267,14 +300,15 @@ export async function replaceLastMeal(args) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const lastResult = await client.query(`SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;`, [args.userId]);
+    const uid = userId(args.userId);
+    const lastResult = await client.query(`SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;`, [uid]);
     const last = lastResult.rows[0];
     if (!last) {
       await client.query("ROLLBACK");
       return null;
     }
     await client.query(`DELETE FROM meals WHERE id = $1`, [last.id]);
-    const meal = await insertMealWithClient(client, { ...args, editedFromMealId: last.id });
+    const meal = await insertMealWithClient(client, { ...args, userId: uid, editedFromMealId: last.id });
     await client.query("COMMIT");
     return meal;
   } catch (error) {
@@ -285,24 +319,25 @@ export async function replaceLastMeal(args) {
   }
 }
 
-export async function getLastMealWithItems(userId) {
-  const mealResult = await query(`SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;`, [userId]);
+export async function getLastMealWithItems(rawUserId) {
+  const mealResult = await query(`SELECT * FROM meals WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 1;`, [userId(rawUserId)]);
   const meal = mealResult.rows[0];
   if (!meal) return null;
   const itemsResult = await query(`SELECT * FROM meal_items WHERE meal_id = $1 ORDER BY id ASC`, [meal.id]);
   return { meal, items: itemsResult.rows };
 }
 
-export async function getMealById(userId, mealId) {
-  const result = await query(`SELECT *, meal_date::text AS meal_date FROM meals WHERE telegram_user_id = $1 AND id = $2`, [userId, mealId]);
+export async function getMealById(rawUserId, mealId) {
+  const result = await query(`SELECT *, meal_date::text AS meal_date FROM meals WHERE telegram_user_id = $1 AND id = $2`, [userId(rawUserId), mealId]);
   return result.rows[0] || null;
 }
 
-export async function updateMealWithItems({ mealId, userId, mealDate, mealType, rawMessage, totals, items }) {
+export async function updateMealWithItems({ mealId, userId: rawUserId, mealDate, mealType, rawMessage, totals, items }) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const existing = await client.query(`SELECT id FROM meals WHERE telegram_user_id = $1 AND id = $2`, [userId, mealId]);
+    const uid = userId(rawUserId);
+    const existing = await client.query(`SELECT id FROM meals WHERE telegram_user_id = $1 AND id = $2`, [uid, mealId]);
     if (!existing.rows[0]) {
       await client.query("ROLLBACK");
       return null;
@@ -320,7 +355,7 @@ export async function updateMealWithItems({ mealId, userId, mealDate, mealType, 
         fiber_g = $11
       WHERE telegram_user_id = $1 AND id = $2
       RETURNING *;
-    `, [userId, mealId, mealDate, mealType || "meal", rawMessage, totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.sugar_g, totals.fiber_g]);
+    `, [uid, mealId, mealDate, mealType || "meal", rawMessage, totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.sugar_g, totals.fiber_g]);
     await client.query(`DELETE FROM meal_items WHERE meal_id = $1`, [mealId]);
     for (const item of items) {
       await client.query(`
@@ -355,21 +390,21 @@ export async function updateMealWithItems({ mealId, userId, mealDate, mealType, 
   }
 }
 
-export async function getDailyTotals(userId, mealDate) {
+export async function getDailyTotals(rawUserId, mealDate) {
   const result = await query(`
     SELECT COALESCE(SUM(calories), 0) AS calories, COALESCE(SUM(protein_g), 0) AS protein_g, COALESCE(SUM(carbs_g), 0) AS carbs_g, COALESCE(SUM(fat_g), 0) AS fat_g, COALESCE(SUM(sugar_g), 0) AS sugar_g, COALESCE(SUM(fiber_g), 0) AS fiber_g
     FROM meals
     WHERE telegram_user_id = $1 AND meal_date = $2;
-  `, [userId, mealDate]);
+  `, [userId(rawUserId), mealDate]);
   return result.rows[0];
 }
 
-export async function getMealsForDate(userId, mealDate) {
+export async function getMealsForDate(rawUserId, mealDate) {
   const result = await query(`
     SELECT * FROM meals
     WHERE telegram_user_id = $1 AND meal_date = $2
     ORDER BY created_at ASC;
-  `, [userId, mealDate]);
+  `, [userId(rawUserId), mealDate]);
   return result.rows;
 }
 
@@ -378,54 +413,54 @@ export async function getMealItems(mealId) {
   return result.rows;
 }
 
-export async function deleteMeal(id, userId) {
-  await query(`DELETE FROM meals WHERE id = $1 AND telegram_user_id = $2`, [id, userId]);
+export async function deleteMeal(id, rawUserId) {
+  await query(`DELETE FROM meals WHERE id = $1 AND telegram_user_id = $2`, [id, userId(rawUserId)]);
 }
 
-export async function getWeeklyTotals(userId, startDate, endDate) {
+export async function getWeeklyTotals(rawUserId, startDate, endDate) {
   const result = await query(`
     SELECT meal_date::text AS meal_date, COALESCE(SUM(calories), 0) AS calories, COALESCE(SUM(protein_g), 0) AS protein_g, COALESCE(SUM(carbs_g), 0) AS carbs_g, COALESCE(SUM(fat_g), 0) AS fat_g, COALESCE(SUM(sugar_g), 0) AS sugar_g, COALESCE(SUM(fiber_g), 0) AS fiber_g
     FROM meals
     WHERE telegram_user_id = $1 AND meal_date >= $2 AND meal_date <= $3
     GROUP BY meal_date
     ORDER BY meal_date ASC;
-  `, [userId, startDate, endDate]);
+  `, [userId(rawUserId), startDate, endDate]);
   return result.rows;
 }
 
-export async function setTargets(userId, goals) {
+export async function setTargets(rawUserId, goals) {
   await query(`
     UPDATE users SET calorie_goal = $2, protein_goal_g = $3, carbs_goal_g = $4, fat_goal_g = $5, sugar_goal_g = $6, fiber_goal_g = $7
     WHERE telegram_user_id = $1;
-  `, [userId, goals.calorie_goal, goals.protein_goal_g, goals.carbs_goal_g, goals.fat_goal_g, goals.sugar_goal_g, goals.fiber_goal_g]);
+  `, [userId(rawUserId), goals.calorie_goal, goals.protein_goal_g, goals.carbs_goal_g, goals.fat_goal_g, goals.sugar_goal_g, goals.fiber_goal_g]);
 }
 
-export async function saveWeight({ userId, date, weightLb }) {
+export async function saveWeight({ userId: rawUserId, date, weightLb }) {
   await query(`
     INSERT INTO weights (telegram_user_id, weight_date, weight_lb)
     VALUES ($1, $2, $3)
     ON CONFLICT (telegram_user_id, weight_date)
     DO UPDATE SET weight_lb = EXCLUDED.weight_lb, created_at = now();
-  `, [userId, date, weightLb]);
+  `, [userId(rawUserId), date, weightLb]);
 }
 
-export async function getWeights(userId, limit = 14) {
+export async function getWeights(rawUserId, limit = 14) {
   const result = await query(`
     SELECT weight_date::text AS date, weight_lb
     FROM weights
     WHERE telegram_user_id = $1
     ORDER BY weight_date DESC
     LIMIT $2;
-  `, [userId, limit]);
+  `, [userId(rawUserId), limit]);
   return result.rows;
 }
 
-export async function exportMealRows(userId) {
+export async function exportMealRows(rawUserId) {
   const result = await query(`
     SELECT id AS meal_id, meal_date::text AS date, meal_type, calories, protein_g, carbs_g, fat_g, sugar_g, fiber_g, raw_message, created_at::text AS created_at
     FROM meals
     WHERE telegram_user_id = $1
     ORDER BY meal_date ASC, created_at ASC;
-  `, [userId]);
+  `, [userId(rawUserId)]);
   return result.rows;
 }
