@@ -1,4 +1,5 @@
 import { query } from "./db.js";
+import { resolveUserId } from "./userContext.js";
 
 export const DEFAULT_RECOMMENDED_MEALS = ["breakfast", "lunch", "dinner", "snack"];
 const ALLOWED = new Set(DEFAULT_RECOMMENDED_MEALS);
@@ -21,7 +22,7 @@ async function ensureTable() {
 
 export async function getRecommendedMeals(userId) {
   await ensureTable();
-  const result = await query(`SELECT recommended_meals FROM user_recommendation_settings WHERE telegram_user_id = $1`, [userId]);
+  const result = await query(`SELECT recommended_meals FROM user_recommendation_settings WHERE telegram_user_id = $1`, [resolveUserId(userId)]);
   return sanitizeRecommendedMeals(result.rows[0]?.recommended_meals || DEFAULT_RECOMMENDED_MEALS);
 }
 
@@ -33,7 +34,7 @@ export async function setRecommendedMeals(userId, meals) {
     VALUES ($1, $2, now())
     ON CONFLICT (telegram_user_id)
     DO UPDATE SET recommended_meals = EXCLUDED.recommended_meals, updated_at = now();
-  `, [userId, recommendedMeals]);
+  `, [resolveUserId(userId), recommendedMeals]);
   return recommendedMeals;
 }
 
