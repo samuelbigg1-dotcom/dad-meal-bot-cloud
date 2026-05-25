@@ -3,6 +3,11 @@ import express from "express";
 import { hasGoogleAuth, loggedInUserId, setupAuth } from "./auth.js";
 import { runWithUserId } from "./userContext.js";
 
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  // Google login replaces the old shared PIN gate. SESSION_SECRET still protects the signed session cookie.
+  process.env.WEB_PIN = "";
+}
+
 const originalUse = express.application.use;
 const installedApps = new WeakSet();
 let installing = false;
