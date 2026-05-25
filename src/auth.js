@@ -8,6 +8,31 @@ function googleAuthConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL);
 }
 
+function loginPage() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Login</title>
+  <link rel="stylesheet" href="/public/app.css?v=google-login-v1" />
+  <link rel="stylesheet" href="/public/compact.css?v=google-login-v1" />
+</head>
+<body class="compact-ui">
+  <div class="app-shell">
+    <main class="content">
+      <section class="card hero compact-card" style="margin-top:32px">
+        <div class="eyebrow">Daily Macro Coach</div>
+        <h1>Welcome back</h1>
+        <p>Sign in so meals, foods, goals, and progress stay separate for each person.</p>
+        <a class="button primary wide" href="/auth/google">Continue with Google</a>
+      </section>
+    </main>
+  </div>
+</body>
+</html>`;
+}
+
 export function setupAuth(app) {
   const sessionSecret = process.env.SESSION_SECRET || process.env.COOKIE_SECRET || process.env.WEB_PIN || "dev-session-secret-change-me";
 
@@ -61,6 +86,11 @@ export function setupAuth(app) {
         done(error);
       }
     }));
+
+    app.get("/login", (req, res) => {
+      if (req.user) return res.redirect("/");
+      res.send(loginPage());
+    });
 
     app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
     app.get("/auth/google/callback", passport.authenticate("google", { failureRedirect: "/login" }), (req, res) => {
