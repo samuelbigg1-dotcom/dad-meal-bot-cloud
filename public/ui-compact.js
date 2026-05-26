@@ -1,5 +1,6 @@
 (function () {
   let unifiedScanInput = null;
+  let scanOverlay = null;
 
   function textOf(selector) { return document.querySelector(selector)?.textContent?.trim() || ""; }
 
@@ -27,8 +28,234 @@
   }
 
   function setScanStatus(action, message) {
-    const status = action.querySelector("small");
+    const status = action?.querySelector?.("small");
     if (status) status.textContent = message;
+  }
+
+  function injectScanOverlayStyles() {
+    if (document.getElementById("scan-overlay-style")) return;
+    const style = document.createElement("style");
+    style.id = "scan-overlay-style";
+    style.textContent = `
+      .scan-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 22px;
+        background: rgba(0,0,0,.58);
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+      }
+      .scan-overlay-card {
+        width: min(100%, 540px);
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 34px;
+        padding: 32px 28px 28px;
+        background: linear-gradient(160deg, rgba(34,38,43,.96), rgba(20,22,26,.97));
+        box-shadow: 0 28px 90px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.05);
+        color: var(--text, #f6f1ea);
+        text-align: center;
+      }
+      .scan-ring {
+        --scan-progress: 6;
+        position: relative;
+        width: 138px;
+        height: 138px;
+        margin: 0 auto 20px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: conic-gradient(var(--accent, #d87b55) calc(var(--scan-progress) * 1%), rgba(255,255,255,.08) 0);
+        filter: drop-shadow(0 0 22px rgba(216,123,85,.18));
+        transition: background .45s ease;
+      }
+      .scan-ring::before {
+        content: "";
+        position: absolute;
+        inset: 10px;
+        border-radius: inherit;
+        background: #17191d;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+      }
+      .scan-ring-icon {
+        position: relative;
+        z-index: 1;
+        width: 58px;
+        height: 58px;
+        color: var(--accent, #d87b55);
+      }
+      .scan-ring-icon svg { width: 100%; height: 100%; display: block; }
+      .scan-overlay-title {
+        margin: 0 0 8px;
+        font-size: clamp(28px, 7vw, 42px);
+        letter-spacing: -.055em;
+        line-height: 1;
+      }
+      .scan-overlay-subtitle {
+        margin: 0 auto 24px;
+        max-width: 320px;
+        color: var(--muted, rgba(246,241,234,.68));
+        font-size: 16px;
+        line-height: 1.45;
+      }
+      .scan-step-list {
+        display: grid;
+        gap: 12px;
+        margin: 0 auto 22px;
+        max-width: 430px;
+      }
+      .scan-step {
+        display: grid;
+        grid-template-columns: 42px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        min-height: 66px;
+        border: 1px solid rgba(255,255,255,.07);
+        border-radius: 999px;
+        padding: 10px 14px 10px 10px;
+        background: rgba(255,255,255,.025);
+        text-align: left;
+        position: relative;
+      }
+      .scan-step + .scan-step::before {
+        content: "";
+        position: absolute;
+        left: 31px;
+        top: -13px;
+        width: 1px;
+        height: 14px;
+        background: linear-gradient(var(--accent, #d87b55), transparent);
+        opacity: .55;
+      }
+      .scan-step-num {
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-weight: 950;
+        background: rgba(255,255,255,.055);
+        color: var(--text, #f6f1ea);
+        border: 1px solid rgba(255,255,255,.08);
+      }
+      .scan-step-label {
+        font-size: 15px;
+        font-weight: 950;
+        letter-spacing: -.02em;
+      }
+      .scan-chip {
+        border-radius: 999px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 950;
+        white-space: nowrap;
+        background: rgba(255,255,255,.05);
+        color: var(--muted, rgba(246,241,234,.68));
+      }
+      .scan-chip.scan-active { color: var(--accent, #d87b55); background: rgba(216,123,85,.12); }
+      .scan-chip.scan-success { color: #9bd6a0; background: rgba(75,160,95,.13); }
+      .scan-chip.scan-warn { color: #f2a27f; background: rgba(216,123,85,.13); }
+      .scan-chip.scan-error { color: #ffb0a8; background: rgba(220,70,60,.16); }
+      .scan-footer {
+        margin: 2px auto 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        max-width: 360px;
+        color: var(--muted, rgba(246,241,234,.72));
+        line-height: 1.42;
+      }
+      .scan-footer-star { color: var(--accent, #d87b55); font-size: 24px; }
+      .scan-overlay-card.scan-error-state .scan-ring {
+        background: conic-gradient(#e56b5f calc(var(--scan-progress) * 1%), rgba(255,255,255,.08) 0);
+      }
+      @media (max-width: 520px) {
+        .scan-overlay { padding: 16px; align-items: center; }
+        .scan-overlay-card { padding: 28px 20px 24px; border-radius: 30px; }
+        .scan-ring { width: 118px; height: 118px; }
+        .scan-ring-icon { width: 50px; height: 50px; }
+        .scan-step { grid-template-columns: 38px 1fr; border-radius: 24px; padding: 12px; }
+        .scan-step-num { width: 38px; height: 38px; }
+        .scan-chip { grid-column: 2; width: fit-content; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function scanIconSvg() {
+    return `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M14 23v-7a2 2 0 0 1 2-2h7"/><path d="M41 14h7a2 2 0 0 1 2 2v7"/>
+      <path d="M50 41v7a2 2 0 0 1-2 2h-7"/><path d="M23 50h-7a2 2 0 0 1-2-2v-7"/>
+      <path d="M24 28v8M30 28v8M36 28v8M42 28v8"/>
+    </svg>`;
+  }
+
+  function ensureScanOverlay() {
+    injectScanOverlayStyles();
+    if (scanOverlay) return scanOverlay;
+    scanOverlay = document.createElement("div");
+    scanOverlay.className = "scan-overlay";
+    scanOverlay.setAttribute("role", "status");
+    scanOverlay.setAttribute("aria-live", "polite");
+    scanOverlay.innerHTML = `<div class="scan-overlay-card">
+      <div class="scan-ring" style="--scan-progress:6"><div class="scan-ring-icon">${scanIconSvg()}</div></div>
+      <h2 class="scan-overlay-title">Scanning your food</h2>
+      <p class="scan-overlay-subtitle">We’ll check barcode first, then the nutrition label if needed.</p>
+      <div class="scan-step-list">
+        <div class="scan-step" data-step="barcode"><div class="scan-step-num">1</div><div class="scan-step-label">Barcode check</div><div class="scan-chip scan-active">Starting…</div></div>
+        <div class="scan-step" data-step="label"><div class="scan-step-num">2</div><div class="scan-step-label">Nutrition label check</div><div class="scan-chip">Waiting</div></div>
+      </div>
+      <div class="scan-footer"><span class="scan-footer-star">✦</span><span>Hang tight! This helps us give you accurate nutrition data.</span></div>
+    </div>`;
+    return scanOverlay;
+  }
+
+  function showScanOverlay() {
+    const overlay = ensureScanOverlay();
+    if (!overlay.isConnected) document.body.appendChild(overlay);
+    updateScanOverlay({ progress: 8, barcode: { text: "Starting…", state: "active" }, label: { text: "Waiting", state: "idle" } });
+  }
+
+  function updateScanOverlay({ progress, barcode, label, title, subtitle, error = false } = {}) {
+    const overlay = ensureScanOverlay();
+    const card = overlay.querySelector(".scan-overlay-card");
+    const ring = overlay.querySelector(".scan-ring");
+    if (typeof progress === "number") ring?.style.setProperty("--scan-progress", String(Math.max(0, Math.min(100, progress))));
+    if (title) overlay.querySelector(".scan-overlay-title").textContent = title;
+    if (subtitle) overlay.querySelector(".scan-overlay-subtitle").textContent = subtitle;
+    card?.classList.toggle("scan-error-state", Boolean(error));
+
+    const setStep = (name, data) => {
+      if (!data) return;
+      const chip = overlay.querySelector(`[data-step='${name}'] .scan-chip`);
+      if (!chip) return;
+      chip.textContent = data.text || chip.textContent;
+      chip.className = `scan-chip ${data.state ? `scan-${data.state}` : ""}`.trim();
+    };
+    setStep("barcode", barcode);
+    setStep("label", label);
+  }
+
+  function hideScanOverlay(delay = 0) {
+    window.setTimeout(() => {
+      if (scanOverlay?.isConnected) scanOverlay.remove();
+    }, delay);
+  }
+
+  function failScanOverlay(message) {
+    updateScanOverlay({
+      progress: 100,
+      title: "Couldn’t scan this photo",
+      subtitle: message || "Try a clearer Nutrition Facts label or barcode.",
+      barcode: { text: "Not found", state: "error" },
+      label: { text: "Not found", state: "error" },
+      error: true
+    });
+    hideScanOverlay(2200);
   }
 
   function getUnifiedScanInput() {
@@ -84,24 +311,34 @@
     submitHiddenForm("/log/confirm", { payload });
   }
 
-  async function tryNutritionLabelScan(imageDataUrl, action) {
-    setScanStatus(action, "Reading Nutrition Facts...");
-    const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
-    const labelData = await labelResponse.json().catch(() => ({}));
-    if (!labelResponse.ok || !labelData.food) throw new Error(labelData.error || "Could not read Nutrition Facts.");
-    setScanStatus(action, "Opening confirmation...");
-    submitHiddenForm("/foods/confirm-scanned-label", { food: encodeFoodPayload(labelData.food) });
-    return true;
-  }
-
   async function tryBarcodeScan(imageDataUrl, action) {
-    setScanStatus(action, "No label found — checking barcode...");
+    setScanStatus(action, "Checking barcode...");
+    updateScanOverlay({ progress: 28, barcode: { text: "Scanning…", state: "active" }, label: { text: "Waiting", state: "idle" } });
     const barcodeResponse = await fetch("/foods/barcode-image-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
     const barcodeData = await barcodeResponse.json().catch(() => ({}));
     const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
-    if (!barcodeResponse.ok || !barcode) throw new Error(barcodeData.error || "Could not read this as a Nutrition Facts label or barcode.");
+    if (!barcodeResponse.ok || !barcode) {
+      setScanStatus(action, "No barcode found — checking label...");
+      updateScanOverlay({ progress: 44, barcode: { text: "No barcode found", state: "warn" }, label: { text: "Starting…", state: "active" } });
+      return false;
+    }
     setScanStatus(action, `Barcode found: ${barcode}`);
+    updateScanOverlay({ progress: 100, barcode: { text: "Barcode found", state: "success" }, label: { text: "Skipped", state: "idle" } });
+    hideScanOverlay(550);
     submitHiddenForm("/foods/barcode", { barcode });
+    return true;
+  }
+
+  async function tryNutritionLabelScan(imageDataUrl, action) {
+    setScanStatus(action, "Reading Nutrition Facts...");
+    updateScanOverlay({ progress: 68, barcode: { text: "No barcode found", state: "warn" }, label: { text: "Scanning…", state: "active" } });
+    const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }) });
+    const labelData = await labelResponse.json().catch(() => ({}));
+    if (!labelResponse.ok || !labelData.food) throw new Error(labelData.error || "Could not read Nutrition Facts.");
+    setScanStatus(action, "Nutrition label found");
+    updateScanOverlay({ progress: 100, barcode: { text: "No barcode found", state: "warn" }, label: { text: "Nutrition label found", state: "success" } });
+    hideScanOverlay(550);
+    submitHiddenForm("/foods/confirm-scanned-label", { food: encodeFoodPayload(labelData.food) });
     return true;
   }
 
@@ -110,18 +347,15 @@
     if (typeof fileToCompressedDataUrl !== "function") throw new Error("Photo tools are still loading. Try once more.");
     if (typeof encodeFoodPayload !== "function") throw new Error("Food tools are still loading. Try once more.");
     setScanStatus(action, "Reading photo...");
+    showScanOverlay();
+    updateScanOverlay({ progress: 14, barcode: { text: "Preparing…", state: "active" }, label: { text: "Waiting", state: "idle" } });
     const imageDataUrl = await fileToCompressedDataUrl(file);
-    try {
-      await tryNutritionLabelScan(imageDataUrl, action);
-      return;
-    } catch (labelError) {
-      await tryBarcodeScan(imageDataUrl, action);
-    }
+    const barcodeFound = await tryBarcodeScan(imageDataUrl, action);
+    if (barcodeFound) return;
+    await tryNutritionLabelScan(imageDataUrl, action);
   }
 
   function openUnifiedScan(action) {
-    const ok = window.confirm("Take a clear photo of the Nutrition Facts label or barcode.");
-    if (!ok) return;
     const input = getUnifiedScanInput();
     input.value = "";
     input.onchange = async () => {
@@ -129,7 +363,13 @@
       if (!file) return;
       action.disabled = true;
       try { await handleUnifiedFoodPhoto(file, action); }
-      catch (error) { setScanStatus(action, error.message || "Scan failed. Try again."); action.disabled = false; input.value = ""; }
+      catch (error) {
+        const message = error.message || "Scan failed. Try again.";
+        setScanStatus(action, message);
+        failScanOverlay(message);
+        action.disabled = false;
+        input.value = "";
+      }
     };
     input.click();
   }
