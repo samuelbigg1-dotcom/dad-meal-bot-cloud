@@ -1,5 +1,6 @@
 (function () {
-  const originalRemove = Element.prototype.remove;
+  let savedFailedOverlayHtml = "";
+  let userClosedFailure = false;
 
   function injectStyles() {
     if (document.getElementById("scan-overlay-guard-style")) return;
@@ -31,7 +32,14 @@
     document.head.appendChild(style);
   }
 
-  function markCloseState(overlay) {
+  function isFailedScanOverlay(overlay) {
+    const card = overlay?.querySelector?.(".scan-overlay-card");
+    if (!card) return false;
+    const body = `${card.textContent || ""}`.toLowerCase();
+    return card.classList.contains("scan-error-state") || body.includes("couldn") || body.includes("not found") || body.includes("try a clearer") || body.includes("could not read");
+  }
+
+  function addCloseButton(overlay) {
     const card = overlay?.querySelector?.(".scan-overlay-card");
     if (!card) return;
     let close = card.querySelector(".scan-overlay-close");
@@ -41,32 +49,45 @@
       close.className = "scan-overlay-close";
       close.setAttribute("aria-label", "Close scan status");
       close.textContent = "×";
-      close.addEventListener("click", () => {
-        overlay.dataset.allowClose = "true";
-        originalRemove.call(overlay);
-      });
       card.prepend(close);
     }
-    const failed = card.classList.contains("scan-error-state") || /couldn.t scan|not found|try a clearer/i.test(card.textContent || "");
-    close.hidden = !failed;
-    overlay.dataset.holdOnFailure = failed ? "true" : "false";
+    close.hidden = false;
+    close.onclick = () => {
+      userClosedFailure = true;
+      savedFailedOverlayHtml = "";
+      overlay.remove();
+    };
   }
 
-  Element.prototype.remove = function guardedRemove() {
-    if (this.classList?.contains("scan-overlay") && this.dataset.holdOnFailure === "true" && this.dataset.allowClose !== "true") {
-      markCloseState(this);
-      return;
-    }
-    return originalRemove.call(this);
-  };
+  function restoreFailedOverlay() {
+    if (userClosedFailure || !savedFailedOverlayHtml || document.querySelector(".scan-overlay")) return;
+    const restored = document.createElement("div");
+    restored.className = "scan-overlay";
+    restored.setAttribute("role", "status");
+    restored.setAttribute("aria-live", "polite");
+    restored.innerHTML = savedFailedOverlayHtml;
+    document.body.appendChild(restored);
+    addCloseButton(restored);
+  }
 
   function watch() {
     injectStyles();
-    document.querySelectorAll(".scan-overlay").forEach(markCloseState);
+    const overlay = document.querySelector(".scan-overlay");
+    if (!overlay) return restoreFailedOverlay();
+
+    if (isFailedScanOverlay(overlay)) {
+      addCloseButton(overlay);
+      savedFailedOverlayHtml = overlay.innerHTML;
+      userClosedFailure = false;
+    } else {
+      const close = overlay.querySelector(".scan-overlay-close");
+      if (close) close.hidden = true;
+    }
   }
 
   const observer = new MutationObserver(watch);
-  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
   document.addEventListener("DOMContentLoaded", watch);
+  window.setInterval(watch, 100);
   watch();
 })();
