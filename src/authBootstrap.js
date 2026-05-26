@@ -2,6 +2,7 @@ import express from "express";
 
 import { hasGoogleAuth, loggedInUserId, setupAuth } from "./auth.js";
 import { runWithUserId } from "./userContext.js";
+import { checkInDue, needsOnboarding, saveCheckIn, saveOnboarding, showCheckIn, showOnboarding } from "./onboarding.js";
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
   // Google login replaces the old shared PIN gate. SESSION_SECRET still protects the signed session cookie.
@@ -12,9 +13,18 @@ const originalUse = express.application.use;
 const installedApps = new WeakSet();
 let installing = false;
 
+function pathOf(req) {
+  return req.path || req.url || "/";
+}
+
 function isPublicPath(req) {
-  const path = req.path || req.url || "/";
+  const path = pathOf(req);
   return path === "/login" || path === "/favicon.ico" || path.startsWith("/auth/") || path.startsWith("/public/");
+}
+
+function isSetupPath(req) {
+  const path = pathOf(req);
+  return path === "/onboarding" || path === "/check-in" || path === "/logout";
 }
 
 function installAuthOnce(app) {
@@ -26,14 +36,39 @@ function installAuthOnce(app) {
   express.application.use = originalUse;
   setupAuth(app);
 
-  originalUse.call(app, (req, res, next) => {
+  app.get("/onboarding", (req, res, next) => {
+    if (!req.user) return res.redirect("/login");
+    return runWithUserId(loggedInUserId(req), () => showOnboarding(req, res).catch(next));
+  });
+  app.post("/onboarding", express.urlencoded({ extended: true, limit: "64kb" }), (req, res, next) => {
+    if (!req.user) return res.redirect("/login");
+    return runWithUserId(loggedInUserId(req), () => saveOnboarding(req, res).catch(next));
+  });
+  app.get("/check-in", (req, res, next) => {
+    if (!req.user) return res.redirect("/login");
+    return runWithUserId(loggedInUserId(req), () => showCheckIn(req, res).catch(next));
+  });
+  app.post("/check-in", express.urlencoded({ extended: true, limit: "64kb" }), (req, res, next) => {
+    if (!req.user) return res.redirect("/login");
+    return runWithUserId(loggedInUserId(req), () => saveCheckIn(req, res).catch(next));
+  });
+
+  originalUse.call(app, async (req, res, next) => {
     if (hasGoogleAuth() && !isPublicPath(req) && !req.user) {
       return res.redirect("/login");
     }
 
     const userId = loggedInUserId(req);
     if (userId) {
-      return runWithUserId(userId, () => next());
+      return runWithUserId(userId, async () => {
+        if (hasGoogleAuth() && !isSetupPath(req) && await needsOnboarding(userId)) {
+          return res.redirect("/onboarding");
+        }
+        if (hasGoogleAuth() && !isSetupPath(req) && await checkInDue(userId)) {
+          return res.redirect("/check-in");
+        }
+        return next();
+      });
     }
 
     return next();
