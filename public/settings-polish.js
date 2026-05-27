@@ -49,10 +49,42 @@
     }
   }
 
+  function headingText(el) {
+    return (el.querySelector("h2, summary")?.textContent || "").replace(/show|hide/ig, "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function removeDuplicateSettingsCards() {
+    const seen = new Set();
+    const duplicateKeys = ["my plan", "daily targets", "redo setup", "advanced manual macro edit", "meal routine"];
+    const cards = [...document.querySelectorAll("section.card, details.card")];
+    for (const card of cards) {
+      const key = headingText(card);
+      if (!duplicateKeys.includes(key)) continue;
+      const hasForm = Boolean(card.querySelector("form[action='/settings']"));
+      const isRebuiltAdvanced = key === "advanced manual macro edit" && card.classList.contains("settings-rebuilt") && hasForm;
+      const keepKey = key === "advanced manual macro edit" ? "advanced manual macro edit" : key;
+      if (seen.has(keepKey)) {
+        card.remove();
+        continue;
+      }
+      if (key === "meal routine") {
+        card.remove();
+        continue;
+      }
+      if (key === "advanced manual macro edit" && !isRebuiltAdvanced && document.querySelector(".advanced-macro-settings.settings-rebuilt")) {
+        card.remove();
+        continue;
+      }
+      seen.add(keepKey);
+    }
+  }
+
   async function rebuildSettings() {
     const title = document.querySelector("h1")?.textContent?.trim().toLowerCase();
-    if (title !== "settings" || document.querySelector(".settings-rebuilt")) return;
+    if (title !== "settings") return;
     injectStyles();
+    removeDuplicateSettingsCards();
+    if (document.querySelector(".settings-plan-card.settings-rebuilt") && document.querySelector(".settings-target-card.settings-rebuilt")) return;
 
     const content = document.querySelector(".content");
     const form = macroForm();
@@ -85,8 +117,11 @@
     content.prepend(planCard, targetCard, resetCard, advanced);
     originalFormCard?.remove();
     originalMealCard?.remove();
+    removeDuplicateSettingsCards();
   }
 
   document.addEventListener("DOMContentLoaded", rebuildSettings);
   window.addEventListener("pageshow", rebuildSettings);
+  window.setTimeout(rebuildSettings, 200);
+  window.setTimeout(removeDuplicateSettingsCards, 650);
 })();
