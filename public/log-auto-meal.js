@@ -1,6 +1,4 @@
 (function () {
-  const LABELS = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snack", late_meal: "Late meal" };
-
   function timeGuess() {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 11) return "breakfast";
@@ -24,25 +22,50 @@
     return looksSnacky(text) ? "snack" : timeGuess();
   }
 
+  function hiddenMealValue(type) {
+    return type === "late_meal" ? "snack" : type;
+  }
+
   function hideLogSelector() {
     const form = document.querySelector("form[action='/log/analyze']");
-    if (!form || form.dataset.autoMealReady === "true") return;
-    form.dataset.autoMealReady = "true";
-    const label = [...form.querySelectorAll(".field-label")].find((el) => /meal type/i.test(el.textContent || ""));
-    const segmented = form.querySelector(".segmented[aria-label='Meal type']");
-    if (label) label.hidden = true;
-    if (segmented) segmented.hidden = true;
+    if (!form) return;
+
     const textarea = form.querySelector("textarea[name='mealText']");
-    const hint = document.createElement("p");
-    hint.className = "muted auto-meal-hint";
-    hint.textContent = "Meal type is detected automatically from timing and what you ate. You can change it before saving.";
-    textarea?.insertAdjacentElement("beforebegin", hint);
-    form.addEventListener("submit", () => {
-      const detected = detectMealType(textarea?.value || "");
-      const fallback = detected === "late_meal" ? "snack" : detected;
-      const radio = form.querySelector(`input[name='mealType'][value='${fallback}']`) || form.querySelector("input[name='mealType'][value='snack']");
-      if (radio) radio.checked = true;
+    let hidden = form.querySelector("input[type='hidden'][name='mealType']");
+    if (!hidden) {
+      hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "mealType";
+      form.prepend(hidden);
+    }
+
+    const oldRadios = [...form.querySelectorAll("input[type='radio'][name='mealType']")];
+    oldRadios.forEach((radio) => {
+      const segment = radio.closest(".segmented");
+      if (segment) segment.remove();
+      else radio.remove();
     });
+
+    [...form.querySelectorAll(".field-label")].forEach((label) => {
+      if (/meal type/i.test(label.textContent || "")) label.remove();
+    });
+
+    if (!form.querySelector(".auto-meal-hint")) {
+      const hint = document.createElement("p");
+      hint.className = "muted auto-meal-hint";
+      hint.textContent = "Meal type is detected automatically from timing and what you ate. You can change it before saving.";
+      textarea?.insertAdjacentElement("beforebegin", hint);
+    }
+
+    const updateHidden = () => {
+      hidden.value = hiddenMealValue(detectMealType(textarea?.value || ""));
+    };
+    updateHidden();
+    textarea?.addEventListener("input", updateHidden);
+    if (form.dataset.autoMealSubmit !== "true") {
+      form.dataset.autoMealSubmit = "true";
+      form.addEventListener("submit", updateHidden);
+    }
   }
 
   function decodePayload(value) {
@@ -113,6 +136,7 @@
 
   document.addEventListener("DOMContentLoaded", run);
   window.addEventListener("pageshow", run);
-  window.setTimeout(run, 250);
-  window.setTimeout(run, 750);
+  window.setTimeout(run, 100);
+  window.setTimeout(run, 350);
+  window.setTimeout(run, 900);
 })();
