@@ -2,6 +2,7 @@
   const svg = {
     Foods: '<svg viewBox="0 0 24 24"><path d="M7 3v18M4.5 3v7.5a2.5 2.5 0 0 0 5 0V3M16 3v18M16 3c2.4 1.6 3.4 3.8 3.4 6.3 0 2-1 3.7-3.4 4.6"/></svg>',
     Log: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    Home: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>',
     Today: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>',
     Meals: '<svg viewBox="0 0 24 24"><path d="M5 11h14M7 11v2.5a5 5 0 0 0 10 0V11M9 7c-.7-.7-.7-1.6 0-2.3M12 7c-.7-.7-.7-1.6 0-2.3M15 7c-.7-.7-.7-1.6 0-2.3M8 19h8"/></svg>',
     Progress: '<svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7M4 19h16"/></svg>',
@@ -10,9 +11,11 @@
     Arrow: '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>'
   };
   const clean = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
+
   function patchIcons() {
     document.querySelectorAll('.bottom-nav a').forEach((a) => {
-      const label = a.dataset.navLabel || clean(a).replace(/[☼♨⚑▥+]/g, '').trim();
+      let label = a.dataset.navLabel || clean(a).replace(/[☼♨⚑▥+]/g, '').trim();
+      if (label === 'Today') label = 'Home';
       if (!label) return;
       a.dataset.navLabel = label;
       a.innerHTML = `<span class="nav-icon">${svg[label] || ''}</span><span class="nav-label">${label}</span>`;
@@ -24,13 +27,28 @@
       if (span) span.innerHTML = icon;
     });
   }
+
   function removeExtras() {
-    if (clean(document.querySelector('h1')).toLowerCase() !== 'today') return;
-    document.querySelectorAll('section.card').forEach((card) => {
-      const h = clean(card.querySelector('h2')).toLowerCase();
-      if (h.includes('meals today') || h === 'weight') card.remove();
-    });
+    const h1 = clean(document.querySelector('h1')).toLowerCase();
+    const isHome = h1 === 'today' || h1 === 'home';
+    const dashboard = document.querySelector('.today-dashboard-card');
+    if (isHome) {
+      document.querySelectorAll('section.card').forEach((card) => {
+        const h = clean(card.querySelector('h2')).toLowerCase();
+        if (h.includes('meals today') || h === 'weight') card.remove();
+      });
+      if (dashboard) {
+        document.querySelectorAll('.content > .macro-grid, .content > section.hero.card').forEach((el) => el.remove());
+        document.querySelectorAll('.macro-grid').forEach((grid) => {
+          if (!grid.closest('.today-dashboard-card')) grid.remove();
+        });
+        document.querySelectorAll('.macro-card').forEach((card) => {
+          if (!card.closest('.today-dashboard-card')) card.remove();
+        });
+      }
+    }
   }
+
   function style() {
     if (document.getElementById('today-dashboard-fix-style')) return;
     const s = document.createElement('style');
@@ -41,6 +59,9 @@
     `;
     document.head.appendChild(s);
   }
-  function run(){style();patchIcons();removeExtras();}
-  document.addEventListener('DOMContentLoaded',run); window.addEventListener('pageshow',run); setTimeout(run,120); setTimeout(run,500); setTimeout(run,1000);
+
+  function run(){ style(); patchIcons(); removeExtras(); }
+  document.addEventListener('DOMContentLoaded', run);
+  window.addEventListener('pageshow', run);
+  setTimeout(run, 80); setTimeout(run, 250); setTimeout(run, 600); setTimeout(run, 1200);
 })();
