@@ -4,73 +4,89 @@
     const style = document.createElement("style");
     style.id = "settings-polish-style";
     style.textContent = `
-      .settings-summary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
-      .settings-summary-tile { border:1px solid var(--line); border-radius:18px; padding:12px; background:var(--card2); }
-      .settings-summary-tile span { display:block; color:var(--muted); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px; }
-      .settings-summary-tile strong { font-size:19px; }
+      .settings-plan-grid, .settings-target-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
+      .settings-tile { border:1px solid var(--line); border-radius:18px; padding:12px; background:var(--card2); }
+      .settings-tile span { display:block; color:var(--muted); font-size:11px; font-weight:950; text-transform:uppercase; letter-spacing:.12em; margin-bottom:5px; }
+      .settings-tile strong { font-size:18px; line-height:1.2; }
+      .settings-target-grid .settings-tile strong { font-size:24px; letter-spacing:-.03em; }
+      .account-pill { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid var(--line); border-radius:22px; background:var(--card2); padding:13px 14px; margin-top:14px; }
+      .account-pill span { color:var(--muted); font-size:12px; font-weight:950; letter-spacing:.1em; text-transform:uppercase; }
+      .account-pill strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .advanced-macro-settings summary { cursor:pointer; font-weight:950; font-size:18px; list-style:none; }
       .advanced-macro-settings summary::-webkit-details-marker { display:none; }
       .advanced-macro-settings summary::after { content:'Show'; float:right; color:var(--muted); font-size:13px; margin-top:4px; }
       .advanced-macro-settings[open] summary::after { content:'Hide'; }
-      .reset-setup-card form { margin-top:12px; }
+      .reset-setup-card form, .account-card .action-row { margin-top:12px; }
       .reset-setup-card .button.danger-soft { background:rgba(218,90,72,.12); border-color:rgba(218,90,72,.28); color:#ffb7aa; }
-      @media (max-width: 560px) { .settings-summary-grid { grid-template-columns:1fr; } }
+      .settings-hidden-original { display:none !important; }
+      @media (max-width: 560px) { .settings-plan-grid, .settings-target-grid { grid-template-columns:1fr; } }
     `;
     document.head.appendChild(style);
   }
 
-  function val(name) {
-    const input = document.querySelector(`form[action='/settings'] [name='${name}']`);
-    return input?.value || "—";
+  function macroForm() { return document.querySelector("form[action='/settings']"); }
+  function val(name) { return macroForm()?.querySelector(`[name='${name}']`)?.value || "—"; }
+  function tile(label, value) { return `<div class="settings-tile"><span>${label}</span><strong>${value || "Not set"}</strong></div>`; }
+
+  function targetsFromForm() {
+    return {
+      calories: val("calories"),
+      protein: val("protein"),
+      carbs: val("carbs"),
+      fat: val("fat"),
+      sugar: val("sugar"),
+      fiber: val("fiber")
+    };
   }
 
-  function polishSettings() {
+  async function getProfile() {
+    try {
+      const response = await fetch("/settings/profile.json", { credentials: "same-origin" });
+      if (!response.ok) throw new Error("profile unavailable");
+      return await response.json();
+    } catch (error) {
+      return { email: "", name: "", plan: {}, targets: targetsFromForm() };
+    }
+  }
+
+  async function rebuildSettings() {
     const title = document.querySelector("h1")?.textContent?.trim().toLowerCase();
-    if (title !== "settings" || document.querySelector(".setup-summary-card")) return;
+    if (title !== "settings" || document.querySelector(".settings-rebuilt")) return;
     injectStyles();
 
     const content = document.querySelector(".content");
-    const macroFormCard = document.querySelector("form[action='/settings']")?.closest("section.card");
-    const macroHero = [...document.querySelectorAll("section.card")].find((card) => card.querySelector("h2")?.textContent?.toLowerCase().includes("macro goals"));
-    const mealsCard = document.querySelector(".recommended-meals-card");
+    const form = macroForm();
+    if (!content || !form) return;
 
-    if (macroHero) {
-      macroHero.classList.add("compact-card", "setup-summary-card");
-      const h2 = macroHero.querySelector("h2");
-      const p = macroHero.querySelector("p");
-      if (h2) h2.textContent = "Your setup";
-      if (p) p.textContent = "These targets came from your startup questions. Redo setup when height, weight, activity, or goal changes.";
-      const summary = document.createElement("div");
-      summary.className = "settings-summary-grid";
-      summary.innerHTML = `
-        <div class="settings-summary-tile"><span>Calories</span><strong>${val("calories")}</strong></div>
-        <div class="settings-summary-tile"><span>Protein</span><strong>${val("protein")}g</strong></div>
-        <div class="settings-summary-tile"><span>Carbs</span><strong>${val("carbs")}g</strong></div>
-        <div class="settings-summary-tile"><span>Fat</span><strong>${val("fat")}g</strong></div>`;
-      macroHero.appendChild(summary);
-    }
+    const profile = await getProfile();
+    const plan = profile.plan || {};
+    const targets = { ...targetsFromForm(), ...(profile.targets || {}) };
+    const originalMealCard = document.querySelector(".recommended-meals-card");
+    const originalFormCard = form.closest("section.card");
+    [...content.querySelectorAll("section.card")].forEach((card) => card.classList.add("settings-hidden-original"));
+
+    const planCard = document.createElement("section");
+    planCard.className = "card compact-card settings-rebuilt settings-plan-card";
+    planCard.innerHTML = `<h2>My plan</h2><p class="muted">This is the setup your targets and meal ideas are based on.</p><div class="account-pill"><div><span>Signed in as</span><strong>${profile.email || profile.name || "Google account"}</strong></div><a class="button" href="/logout">Log out</a></div><div class="settings-plan-grid">${tile("Goal", plan.goal)}${tile("Pace", plan.pace)}${tile("Activity", plan.activity)}${tile("Eating style", plan.eatingStyle)}${tile("Meal routine", plan.mealRoutine)}${tile("Height", plan.height)}${tile("Starting weight", plan.startingWeight)}${tile("Age", plan.age)}</div>`;
+
+    const targetCard = document.createElement("section");
+    targetCard.className = "card compact-card settings-rebuilt settings-target-card";
+    targetCard.innerHTML = `<h2>Daily targets</h2><p class="muted">Generated from your setup. These are the numbers the dashboard and meal ideas use.</p><div class="settings-target-grid">${tile("Calories", targets.calories)}${tile("Protein", `${targets.protein}g`)}${tile("Carbs", `${targets.carbs}g`)}${tile("Fat", `${targets.fat}g`)}${tile("Sugar", `under ${targets.sugar}g`)}${tile("Fiber", `${targets.fiber}g`)}</div>`;
 
     const resetCard = document.createElement("section");
-    resetCard.className = "card compact-card reset-setup-card";
-    resetCard.innerHTML = `<h2>Redo setup</h2><p class="muted">Run the startup wizard again to reset goal, height, weight, activity level, pace, eating style, and generated targets.</p><form method="post" action="/settings/reset-onboarding" onsubmit="return confirm('Redo setup? This will send you through the startup questions again and replace your generated targets.');"><button class="button danger-soft wide" type="submit">Redo startup setup</button></form>`;
-    macroHero?.insertAdjacentElement("afterend", resetCard) || content?.prepend(resetCard);
+    resetCard.className = "card compact-card settings-rebuilt reset-setup-card";
+    resetCard.innerHTML = `<h2>Redo setup</h2><p class="muted">Run the startup wizard again if the goal, height, weight, activity, eating style, or meal routine needs to change.</p><form method="post" action="/settings/reset-onboarding" onsubmit="return confirm('Redo setup? This will send you through the startup questions again and replace your generated targets.');"><button class="button danger-soft wide" type="submit">Redo startup setup</button></form>`;
 
-    if (macroFormCard) {
-      const details = document.createElement("details");
-      details.className = "card compact-card advanced-macro-settings";
-      details.innerHTML = `<summary>Advanced manual macro edit</summary><p class="muted">Most people should use Redo setup above. Use this only if you already know the exact targets you want.</p>`;
-      macroFormCard.parentNode.insertBefore(details, macroFormCard);
-      details.appendChild(macroFormCard.querySelector("form"));
-      macroFormCard.remove();
-    }
+    const advanced = document.createElement("details");
+    advanced.className = "card compact-card settings-rebuilt advanced-macro-settings";
+    advanced.innerHTML = `<summary>Advanced manual macro edit</summary><p class="muted">Use this only if you already know the exact targets you want. Redo setup is the better option for most changes.</p>`;
+    advanced.appendChild(form);
 
-    if (mealsCard) {
-      mealsCard.classList.add("compact-card");
-      const h2 = mealsCard.querySelector("h2");
-      if (h2) h2.textContent = "Meal routine";
-    }
+    content.prepend(planCard, targetCard, resetCard, advanced);
+    originalFormCard?.remove();
+    originalMealCard?.remove();
   }
 
-  document.addEventListener("DOMContentLoaded", polishSettings);
-  window.addEventListener("pageshow", polishSettings);
+  document.addEventListener("DOMContentLoaded", rebuildSettings);
+  window.addEventListener("pageshow", rebuildSettings);
 })();
