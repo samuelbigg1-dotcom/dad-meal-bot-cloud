@@ -1,4 +1,7 @@
 (function () {
+  let homeScanInput = null;
+  let homeScanBusy = false;
+
   function text(el) { return (el?.textContent || "").replace(/\s+/g, " ").trim(); }
   function parseNumber(value) { const match = String(value || "").replace(/,/g, "").match(/-?\d+(\.\d+)?/); return match ? Number(match[0]) : 0; }
 
@@ -64,10 +67,118 @@
     });
   }
 
+  function submitHiddenForm(action, fields) {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = action;
+    Object.entries(fields).forEach(([name, value]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  function encodePayload(data) {
+    if (typeof window.encodeFoodPayload === "function") return window.encodeFoodPayload(data);
+    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  }
+
+  function getHomeScanInput() {
+    if (homeScanInput) return homeScanInput;
+    homeScanInput = document.createElement("input");
+    homeScanInput.type = "file";
+    homeScanInput.accept = "image/*";
+    homeScanInput.capture = "environment";
+    homeScanInput.className = "home-scan-input";
+    homeScanInput.style.display = "none";
+    document.body.appendChild(homeScanInput);
+    return homeScanInput;
+  }
+
+  function showHomeScanOverlay(title = "Scanning your food", subtitle = "Preparing photo…") {
+    let overlay = document.querySelector(".home-scan-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "scan-overlay home-scan-overlay";
+      overlay.innerHTML = `<div class="scan-overlay-card"><button class="scan-overlay-close" type="button" aria-label="Close">×</button><div class="scan-ring" style="--scan-progress:12"><div class="scan-ring-icon">▥</div></div><h2 class="scan-overlay-title"></h2><p class="scan-overlay-subtitle"></p><div class="scan-step-list"><div class="scan-step"><div class="scan-step-num">1</div><div class="scan-step-label">Barcode check</div><div class="scan-chip scan-active" data-home-barcode>Starting…</div></div><div class="scan-step"><div class="scan-step-num">2</div><div class="scan-step-label">Nutrition label check</div><div class="scan-chip" data-home-label>Waiting</div></div></div><div class="scan-footer"><span class="scan-footer-star">✦</span><span>Hang tight! This helps us give you accurate nutrition data.</span></div></div>`;
+      overlay.querySelector(".scan-overlay-close")?.addEventListener("click", () => overlay.remove());
+    }
+    overlay.querySelector(".scan-overlay-title").textContent = title;
+    overlay.querySelector(".scan-overlay-subtitle").textContent = subtitle;
+    if (!overlay.isConnected) document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function setHomeScanStatus({ progress, title, subtitle, barcode, label, error } = {}) {
+    const overlay = showHomeScanOverlay(title || "Scanning your food", subtitle || "We’ll check barcode first, then the Nutrition Facts label if needed.");
+    const ring = overlay.querySelector(".scan-ring");
+    const card = overlay.querySelector(".scan-overlay-card");
+    if (typeof progress === "number") ring?.style.setProperty("--scan-progress", String(Math.max(0, Math.min(100, progress))));
+    card?.classList.toggle("scan-error-state", Boolean(error));
+    if (barcode) {
+      const chip = overlay.querySelector("[data-home-barcode]");
+      if (chip) { chip.textContent = barcode.text; chip.className = `scan-chip scan-${barcode.state || "active"}`; }
+    }
+    if (label) {
+      const chip = overlay.querySelector("[data-home-label]");
+      if (chip) { chip.textContent = label.text; chip.className = `scan-chip scan-${label.state || "active"}`; }
+    }
+  }
+
+  async function scanHomePhoto(file) {
+    if (!file || homeScanBusy) return;
+    homeScanBusy = true;
+    try {
+      if (typeof window.fileToCompressedDataUrl !== "function") throw new Error("Photo tools are still loading. Refresh and try once more.");
+      setHomeScanStatus({ progress: 14, title: "Scanning your food", barcode: { text: "Preparing…", state: "active" }, label: { text: "Waiting", state: "idle" } });
+      const imageDataUrl = await window.fileToCompressedDataUrl(file);
+
+      setHomeScanStatus({ progress: 30, barcode: { text: "Scanning…", state: "active" }, label: { text: "Waiting", state: "idle" } });
+      const barcodeResponse = await fetch("/foods/barcode-image-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }), credentials: "same-origin" });
+      const barcodeData = await barcodeResponse.json().catch(() => ({}));
+      const barcode = String(barcodeData.barcode || "").replace(/\D/g, "");
+      if (barcodeResponse.ok && barcode) {
+        setHomeScanStatus({ progress: 100, barcode: { text: "Barcode found", state: "success" }, label: { text: "Skipped", state: "idle" } });
+        window.setTimeout(() => submitHiddenForm("/foods/barcode", { barcode }), 350);
+        return;
+      }
+
+      setHomeScanStatus({ progress: 48, barcode: { text: "No barcode found", state: "warn" }, label: { text: "Scanning…", state: "active" } });
+      const labelResponse = await fetch("/foods/label-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageDataUrl }), credentials: "same-origin" });
+      const labelData = await labelResponse.json().catch(() => ({}));
+      if (!labelResponse.ok || !labelData.food) throw new Error(labelData.error || "Could not read Nutrition Facts.");
+      setHomeScanStatus({ progress: 100, barcode: { text: "No barcode found", state: "warn" }, label: { text: "Nutrition label found", state: "success" } });
+      window.setTimeout(() => submitHiddenForm("/foods/confirm-scanned-label", { food: encodePayload(labelData.food) }), 350);
+    } catch (error) {
+      setHomeScanStatus({ progress: 100, title: "Couldn’t scan this photo", subtitle: error.message || "Try a clearer Nutrition Facts label or barcode.", barcode: { text: "Not found", state: "error" }, label: { text: "Not found", state: "error" }, error: true });
+      window.setTimeout(() => document.querySelector(".home-scan-overlay")?.remove(), 2600);
+      homeScanBusy = false;
+    }
+  }
+
+  function wireHomeScanButton(root = document) {
+    const scan = root.querySelector?.(".today-action[data-home-scan], .today-action[href='#scan-food']");
+    if (!scan || scan.dataset.homeScanDirect === "true") return;
+    scan.dataset.homeScanDirect = "true";
+    scan.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const input = getHomeScanInput();
+      input.value = "";
+      input.onchange = () => scanHomePhoto(input.files && input.files[0]);
+      input.click();
+    }, true);
+  }
+
   function redesignToday() {
     const title = text(document.querySelector("h1")).toLowerCase();
     if (title !== "today" && title !== "home") return;
-    if (document.body.dataset.todayDashboard === "true") return;
+    if (document.body.dataset.todayDashboard === "true") { wireHomeScanButton(); return; }
 
     const content = document.querySelector(".content");
     const hero = document.querySelector("section.hero.card");
@@ -99,7 +210,7 @@
         <div class="today-next-bottom"><a class="button primary" href="/recommendations">Open Meals</a><div class="today-food-plate" aria-hidden="true"><span>🍗</span><span>🥬</span><span>🫐</span></div></div>
       </div>
       <div class="today-action-grid">
-        <a class="today-action primary" href="#scan-food"><span>▥</span><strong>Scan food</strong></a>
+        <a class="today-action primary" href="#scan-food" data-home-scan="true"><span>▥</span><strong>Scan food</strong></a>
         <a class="today-action" href="/log"><span>+</span><strong>Log meal</strong></a>
         <a class="today-action" href="/foods"><span>⌕</span><strong>Foods</strong></a>
         <a class="today-action" href="/history"><span>↗</span><strong>Progress</strong></a>
@@ -109,6 +220,7 @@
     hero.remove();
     document.querySelector(".macro-grid")?.remove();
     content.prepend(dashboard);
+    wireHomeScanButton(dashboard);
 
     [...content.querySelectorAll("section.card")].forEach((card) => {
       const heading = text(card.querySelector("h2")).toLowerCase();
@@ -162,7 +274,7 @@
     document.head.appendChild(style);
   }
 
-  function run() { injectStyles(); addBottomNavIcons(); redesignToday(); }
+  function run() { injectStyles(); addBottomNavIcons(); redesignToday(); wireHomeScanButton(); }
   document.addEventListener("DOMContentLoaded", run);
   window.addEventListener("pageshow", run);
   window.setTimeout(run, 80);
