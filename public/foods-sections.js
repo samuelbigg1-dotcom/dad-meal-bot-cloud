@@ -35,10 +35,15 @@
     if (!title.includes("foods")) return;
 
     for (const card of document.querySelectorAll("section.card")) {
+      const body = text(card).toLowerCase();
       const heading = card.querySelector("h2")?.textContent?.trim().toLowerCase() || "";
       const hasManualForm = Boolean(card.querySelector("form[action='/foods/manual']"));
+      const hasManualToggle = Boolean(card.querySelector("#toggleManualFoodForm, [data-toggle-manual-food]")) || body.includes("add food manually");
       const isFallbackDetails = card.closest("details.fallback-scans");
-      if (!isFallbackDetails && hasManualForm && (heading.includes("add food manually") || heading.includes("custom food"))) {
+      const isPrimaryScan = card.classList.contains("foods-primary-scan");
+      const isSavedFoods = card.classList.contains("saved-foods-card") || heading.includes("saved foods");
+
+      if (!isFallbackDetails && !isPrimaryScan && !isSavedFoods && (hasManualForm || hasManualToggle) && (heading.includes("add food manually") || heading.includes("custom food") || body.includes("add food manually"))) {
         card.remove();
       }
     }
@@ -97,4 +102,5 @@
   window.addEventListener("pageshow", run);
   window.setTimeout(run, 150);
   window.setTimeout(run, 500);
+  window.setTimeout(run, 1200);
 })();
