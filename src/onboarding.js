@@ -12,10 +12,10 @@ function page({ title, body }) {
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"dark";}catch(e){document.documentElement.dataset.theme="dark";}</script>
-  <link rel="stylesheet" href="/public/app.css?v=onboarding-card-v3" />
-  <link rel="stylesheet" href="/public/compact.css?v=onboarding-card-v3" />
+  <link rel="stylesheet" href="/public/app.css?v=onboarding-card-v4" />
+  <link rel="stylesheet" href="/public/compact.css?v=onboarding-card-v4" />
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: dark; --step-progress: 20; }
     html { background:#07080a; scroll-behavior:auto; }
     body { min-height: 100vh; background: radial-gradient(circle at top, rgba(216,123,85,.16), transparent 36%), #07080a; color:#f6f1ea; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .onboarding-shell { max-width: 760px; margin: 0 auto; min-height:100vh; padding: max(18px, env(safe-area-inset-top)) 16px calc(150px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; justify-content:flex-start; }
@@ -30,7 +30,7 @@ function page({ title, body }) {
     .wizard-step { display:none; animation:stepIn .22s ease both; }
     .wizard-step.active { display:block; }
     @keyframes stepIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
-    .step-icon { width:92px; height:92px; margin:2px auto 18px; border-radius:999px; display:grid; place-items:center; background:conic-gradient(#d98463 74%, rgba(255,255,255,.08) 0); box-shadow:0 0 32px rgba(216,123,85,.18); }
+    .step-icon { width:92px; height:92px; margin:2px auto 18px; border-radius:999px; display:grid; place-items:center; background:conic-gradient(#d98463 calc(var(--step-progress) * 1%), rgba(255,255,255,.08) 0); box-shadow:0 0 32px rgba(216,123,85,.18); transition:background .22s ease; }
     .step-icon span { width:68px; height:68px; border-radius:999px; display:grid; place-items:center; background:#15171b; font-size:30px; }
     .wizard-step h2 { text-align:center; font-size: clamp(30px, 8vw, 48px); line-height:.98; letter-spacing:-.06em; margin:0 0 10px; }
     .wizard-step > p { text-align:center; color:rgba(246,241,234,.68); font-size:16px; line-height:1.45; margin:0 auto 20px; max-width:420px; }
@@ -70,6 +70,7 @@ function page({ title, body }) {
         current = Math.max(0, Math.min(steps.length - 1, index));
         steps.forEach((step, i) => step.classList.toggle('active', i === current));
         dots.forEach((dot, i) => dot.classList.toggle('on', i <= current));
+        document.documentElement.style.setProperty('--step-progress', String(Math.round(((current + 1) / steps.length) * 100)));
         if (shouldScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
       };
       document.querySelectorAll('[data-next]').forEach((button) => button.addEventListener('click', () => {
@@ -141,6 +142,12 @@ function recommendedMealsForPattern(pattern) {
   return ["breakfast", "lunch", "dinner", "snack"];
 }
 
+function carbCapForGoal(goal, weightLb, activityLevel) {
+  const activeBump = ["training", "very_active"].includes(activityLevel) ? 0.25 : 0;
+  const multiplier = ({ lose_fat: 1.15, maintain: 1.45, track: 1.45, build_muscle: 1.75, gain_weight: 1.9 })[goal] || 1.45;
+  return Math.round(Math.max(130, Math.min(320, weightLb * (multiplier + activeBump))));
+}
+
 export function calculateStartingTargets(input) {
   const age = Math.max(18, Math.min(90, Number(input.age || 35)));
   const weightLb = Math.max(80, Math.min(500, Number(input.weightLb || 180)));
@@ -150,7 +157,8 @@ export function calculateStartingTargets(input) {
   const kg = weightLb / 2.20462;
   const sex = String(input.sex || "male");
   const base = (10 * kg) + (6.25 * heightCm) - (5 * age) + (sex === "female" ? -161 : 5);
-  const tdee = base * activityMultiplier(input.activityLevel);
+  const activityLevel = String(input.activityLevel || "light");
+  const tdee = base * activityMultiplier(activityLevel);
   const goal = String(input.goalType || "maintain");
   const pace = String(input.goalPace || "steady");
   const cutPct = pace === "easy" ? 0.10 : pace === "faster" ? 0.20 : 0.15;
@@ -160,10 +168,13 @@ export function calculateStartingTargets(input) {
   if (goal === "build_muscle") calories = tdee * (1 + Math.min(gainPct, 0.10));
   if (goal === "gain_weight") calories = tdee * (1 + gainPct);
   calories = Math.round(Math.max(1500, Math.min(4500, calories)) / 25) * 25;
-  const proteinFactor = goal === "lose_fat" ? 0.9 : goal === "build_muscle" || goal === "gain_weight" ? 0.85 : 0.75;
-  const protein_goal_g = Math.round(Math.max(90, Math.min(260, weightLb * proteinFactor)));
-  const fat_goal_g = Math.round(Math.max(weightLb * 0.3, (calories * 0.25) / 9));
-  const carbs_goal_g = Math.round(Math.max(80, (calories - protein_goal_g * 4 - fat_goal_g * 9) / 4));
+
+  const proteinFactor = goal === "lose_fat" ? 1.0 : goal === "build_muscle" || goal === "gain_weight" ? 1.0 : 0.82;
+  const protein_goal_g = Math.round(Math.max(100, Math.min(260, weightLb * proteinFactor)));
+  const carbCap = carbCapForGoal(goal, weightLb, activityLevel);
+  const uncappedCarbs = Math.round(Math.max(100, (calories - protein_goal_g * 4 - Math.max(weightLb * 0.35, (calories * 0.25) / 9) * 9) / 4));
+  const carbs_goal_g = Math.round(Math.max(100, Math.min(carbCap, uncappedCarbs)));
+  const fat_goal_g = Math.round(Math.max(weightLb * 0.35, (calories - protein_goal_g * 4 - carbs_goal_g * 4) / 9));
   const fiber_goal_g = Math.round(Math.max(25, Math.min(45, calories / 1000 * 14)));
   const sugar_goal_g = Math.round(Math.max(40, Math.min(85, (calories * 0.10) / 4)));
   return { calorie_goal: calories, protein_goal_g, carbs_goal_g, fat_goal_g, sugar_goal_g, fiber_goal_g, heightCm, weightLb, age, sex };
