@@ -7,23 +7,29 @@
     const style = document.createElement("style");
     style.id = "scan-overlay-guard-style";
     style.textContent = `
-      .scan-overlay-card { position: relative; }
+      .scan-overlay { background: rgba(0,0,0,.62) !important; backdrop-filter: blur(10px); }
+      .scan-overlay-card { position: relative; color:#f7f2eb !important; background:linear-gradient(160deg, rgba(31,35,40,.98), rgba(15,17,21,.98)) !important; border-color:rgba(255,255,255,.12) !important; }
+      .scan-overlay-card h2, .scan-overlay-card h3, .scan-overlay-card strong { color:#ffffff !important; opacity:1 !important; }
+      .scan-overlay-card p, .scan-overlay-card span, .scan-overlay-card .muted { color:rgba(247,242,235,.78) !important; opacity:1 !important; }
+      .scan-overlay-card .scan-status-pill, .scan-overlay-card .status-pill { opacity:1 !important; }
       .scan-overlay-close {
         position: absolute;
         top: 14px;
         right: 14px;
-        width: 42px;
-        height: 42px;
-        border: 1px solid rgba(255,255,255,.12);
+        width: 46px;
+        height: 46px;
+        border: 1px solid rgba(255,255,255,.22);
         border-radius: 999px;
-        background: rgba(255,255,255,.05);
-        color: var(--text, #f6f1ea);
-        font-size: 28px;
+        background: rgba(255,255,255,.11);
+        color: #ffffff !important;
+        font-size: 30px;
+        font-weight: 500;
         line-height: 1;
         display: grid;
         place-items: center;
         cursor: pointer;
-        z-index: 2;
+        z-index: 5;
+        opacity: 1 !important;
         -webkit-tap-highlight-color: transparent;
       }
       .scan-overlay-close:active { transform: scale(.96); }
