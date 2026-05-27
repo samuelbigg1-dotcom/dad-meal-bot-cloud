@@ -2,7 +2,8 @@ import express from "express";
 
 import { hasGoogleAuth, loggedInUserId, setupAuth } from "./auth.js";
 import { runWithUserId } from "./userContext.js";
-import { query } from "./db.js";
+import { getUser, query } from "./db.js";
+import { getRecommendedMeals } from "./recommendedMeals.js";
 import { checkInDue, ensureOnboardingSchema, needsOnboarding, saveCheckIn, saveOnboarding, showCheckIn, showOnboarding } from "./onboarding.js";
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
@@ -25,7 +26,18 @@ function isPublicPath(req) {
 
 function isSetupPath(req) {
   const path = pathOf(req);
-  return path === "/onboarding" || path === "/check-in" || path === "/logout" || path === "/settings/reset-onboarding";
+  return path === "/onboarding" || path === "/check-in" || path === "/logout" || path === "/settings/reset-onboarding" || path === "/settings/profile.json";
+}
+
+function labelize(value) {
+  return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function heightText(heightCm) {
+  const cm = Number(heightCm || 0);
+  if (!cm) return "Not set";
+  const totalInches = Math.round(cm / 2.54);
+  return `${Math.floor(totalInches / 12)}'${totalInches % 12}`;
 }
 
 async function resetOnboardingForUser(userId) {
@@ -72,6 +84,37 @@ function installAuthOnce(app) {
   app.post("/check-in", express.urlencoded({ extended: true, limit: "64kb" }), (req, res, next) => {
     if (!req.user) return res.redirect("/login");
     return runWithUserId(loggedInUserId(req), () => saveCheckIn(req, res).catch(next));
+  });
+  app.get("/settings/profile.json", (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: "Not signed in" });
+    const userId = loggedInUserId(req);
+    return runWithUserId(userId, async () => {
+      await ensureOnboardingSchema();
+      const user = await getUser(userId);
+      const recommendedMeals = await getRecommendedMeals(userId);
+      res.json({
+        email: user?.email || "",
+        name: user?.first_name || "",
+        plan: {
+          goal: labelize(user?.goal_type || "Not set"),
+          pace: labelize(user?.goal_pace || "Not set"),
+          activity: labelize(user?.activity_level || "Not set"),
+          eatingStyle: labelize(user?.eating_pattern || "Not set"),
+          mealRoutine: recommendedMeals.map(labelize).join(", "),
+          height: heightText(user?.height_cm),
+          startingWeight: user?.starting_weight_lb ? `${Number(user.starting_weight_lb).toFixed(1)} lb` : "Not set",
+          age: user?.birth_age ? String(Math.round(Number(user.birth_age))) : "Not set"
+        },
+        targets: {
+          calories: Math.round(Number(user?.calorie_goal || 0)),
+          protein: Math.round(Number(user?.protein_goal_g || 0)),
+          carbs: Math.round(Number(user?.carbs_goal_g || 0)),
+          fat: Math.round(Number(user?.fat_goal_g || 0)),
+          sugar: Math.round(Number(user?.sugar_goal_g || 0)),
+          fiber: Math.round(Number(user?.fiber_goal_g || 0))
+        }
+      });
+    }).catch(next);
   });
   app.post("/settings/reset-onboarding", express.urlencoded({ extended: true, limit: "64kb" }), (req, res, next) => {
     if (!req.user) return res.redirect("/login");
