@@ -24,7 +24,7 @@
   }
 
   function addBottomNavIcons() {
-    const labels = { Foods: "⚑", Log: "+", Today: "☼", Meals: "♨", Progress: "▥" };
+    const labels = { Foods: "⚑", Log: "+", Today: "☼", Home: "☼", Meals: "♨", Progress: "▥" };
     document.querySelectorAll(".bottom-nav a").forEach((link) => {
       if (link.dataset.navIconReady === "true") return;
       const label = text(link);
@@ -36,7 +36,7 @@
 
   function redesignToday() {
     const title = text(document.querySelector("h1")).toLowerCase();
-    if (title !== "today") return;
+    if (title !== "today" && title !== "home") return;
     if (document.body.dataset.todayDashboard === "true") return;
     document.body.dataset.todayDashboard = "true";
     addBottomNavIcons();
@@ -48,7 +48,6 @@
 
     const date = text(hero.querySelector(".eyebrow"));
     const calorieText = text(hero.querySelector("h2"));
-    const actionRow = hero.querySelector(".action-row");
     const macros = [...macroGrid.querySelectorAll(".macro-card")].map(macroData);
     const calories = macros.find((m) => /calorie/i.test(m.label));
     const percent = calories?.goal ? Math.max(0, Math.min(100, Math.round((calories.current / calories.goal) * 100))) : 0;
@@ -69,23 +68,20 @@
         <div class="today-next-bottom"><a class="button primary" href="/recommendations">Open Meals</a><div class="today-food-plate" aria-hidden="true"><span>🍗</span><span>🥬</span><span>🫐</span></div></div>
       </div>
       <div class="today-action-grid">
-        <a class="today-action primary" href="/foods"><span>▥</span><strong>Scan food</strong></a>
+        <a class="today-action primary" href="#scan-food"><span>▥</span><strong>Scan food</strong></a>
         <a class="today-action" href="/log"><span>+</span><strong>Log meal</strong></a>
         <a class="today-action" href="/foods"><span>⌕</span><strong>Foods</strong></a>
         <a class="today-action" href="/history"><span>↗</span><strong>Progress</strong></a>
       </div>`;
 
-    const compactMacros = document.createElement("div");
-    compactMacros.className = "today-compact-macros";
-    macroGrid.querySelectorAll(".macro-card").forEach((card) => compactMacros.appendChild(card));
-    dashboard.appendChild(compactMacros);
-
     hero.remove();
     macroGrid.remove();
     content.prepend(dashboard);
 
-    const mealsCard = [...content.querySelectorAll("section.card")].find((card) => text(card.querySelector("h2")).toLowerCase().includes("meals today"));
-    if (mealsCard) mealsCard.classList.add("today-secondary-card");
+    [...content.querySelectorAll("section.card")].forEach((card) => {
+      const heading = text(card.querySelector("h2")).toLowerCase();
+      if (heading.includes("meals today") || heading === "weight") card.remove();
+    });
   }
 
   function injectStyles() {
@@ -93,7 +89,7 @@
     const style = document.createElement("style");
     style.id = "today-dashboard-style";
     style.textContent = `
-      body[data-today-dashboard="true"] .content { max-width: 760px; margin: 0 auto; padding-left: 18px; padding-right: 18px; padding-bottom: 140px; }
+      body[data-today-dashboard="true"] .content { max-width: 760px; margin: 0 auto; padding-left: 18px; padding-right: 18px; padding-bottom: 132px; }
       .today-dashboard-card { border:1px solid var(--line); border-radius:34px; background:rgba(255,255,255,.74); box-shadow:0 24px 70px rgba(55,38,24,.10); padding:26px; display:grid; gap:20px; }
       [data-theme="dark"] .today-dashboard-card { background:linear-gradient(160deg, rgba(34,38,43,.96), rgba(20,22,26,.98)); box-shadow:0 28px 90px rgba(0,0,0,.45); }
       .today-hero-block h2 { font-size:clamp(42px, 9vw, 62px); letter-spacing:-.07em; line-height:.94; margin:8px 0 18px; }
@@ -118,14 +114,8 @@
       .today-action span { width:54px; height:54px; border-radius:999px; display:grid; place-items:center; background:rgba(199,92,62,.10); color:var(--accent); font-size:24px; }
       .today-action.primary { background:linear-gradient(135deg, #cf6848, #c75436); color:white; border-color:transparent; box-shadow:0 16px 34px rgba(199,92,62,.22); }
       .today-action.primary span { background:rgba(255,255,255,.18); color:white; }
-      .today-compact-macros { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-      .today-compact-macros .macro-card { min-height:138px; border-radius:20px; padding:18px; }
-      .today-compact-macros .macro-head { display:block; }
-      .today-compact-macros .macro-head span { display:block; font-size:18px; margin-bottom:8px; }
-      .today-compact-macros .macro-head strong { color:var(--accent); font-size:24px; }
-      .today-compact-macros .macro-values { display:block; margin-top:10px; color:var(--muted); }
-      .today-compact-macros .macro-values span { display:block; }
-      .today-secondary-card { max-width:760px; margin-left:auto; margin-right:auto; }
+      .today-compact-macros, body[data-today-dashboard="true"] .content > .macro-grid, body[data-today-dashboard="true"] .macro-card { display:none !important; }
+      .today-secondary-card { display:none !important; }
       .bottom-nav { left:50% !important; transform:translateX(-50%); width:min(760px, calc(100vw - 28px)); border-radius:34px; bottom:calc(14px + env(safe-area-inset-bottom)); padding:8px 10px !important; box-shadow:0 20px 70px rgba(55,38,24,.14); }
       .bottom-nav a { display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:60px; border-radius:26px; font-size:13px; padding:8px 4px; }
       .bottom-nav a .nav-icon { font-size:25px; line-height:1; font-weight:400; }
@@ -138,7 +128,6 @@
         .today-dashboard-card { padding:20px; border-radius:30px; gap:16px; }
         .today-action { min-height:92px; padding:14px; font-size:18px; }
         .today-action span { width:48px; height:48px; }
-        .today-compact-macros { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .today-next-bottom { align-items:center; }
         .today-food-plate { font-size:32px; }
         .bottom-nav { width:calc(100vw - 20px); }
@@ -151,5 +140,7 @@
   function run() { injectStyles(); addBottomNavIcons(); redesignToday(); }
   document.addEventListener("DOMContentLoaded", run);
   window.addEventListener("pageshow", run);
-  window.setTimeout(run, 200);
+  window.setTimeout(run, 80);
+  window.setTimeout(run, 250);
+  window.setTimeout(run, 800);
 })();
