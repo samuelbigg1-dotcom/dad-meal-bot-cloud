@@ -4,6 +4,8 @@
     const style = document.createElement("style");
     style.id = "settings-polish-style";
     style.textContent = `
+      .settings-done-row { display:flex; justify-content:flex-end; margin:-6px 0 12px; }
+      .settings-done-button { min-width:104px; justify-content:center; border-radius:999px; background:var(--accent); color:#1a100c; font-weight:950; }
       .settings-plan-grid, .settings-target-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
       .settings-tile { border:1px solid var(--line); border-radius:18px; padding:12px; background:var(--card2); }
       .settings-tile span { display:block; color:var(--muted); font-size:11px; font-weight:950; text-transform:uppercase; letter-spacing:.12em; margin-bottom:5px; }
@@ -19,7 +21,7 @@
       .reset-setup-card form, .account-card .action-row { margin-top:12px; }
       .reset-setup-card .button.danger-soft { background:rgba(218,90,72,.12); border-color:rgba(218,90,72,.28); color:#ffb7aa; }
       .settings-hidden-original { display:none !important; }
-      @media (max-width: 560px) { .settings-plan-grid, .settings-target-grid { grid-template-columns:1fr; } }
+      @media (max-width: 560px) { .settings-plan-grid, .settings-target-grid { grid-template-columns:1fr; } .settings-done-row { justify-content:stretch; } .settings-done-button { width:100%; } }
     `;
     document.head.appendChild(style);
   }
@@ -53,6 +55,14 @@
     return (el.querySelector("h2, summary")?.textContent || "").replace(/show|hide/ig, "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
+  function addDoneButton(content) {
+    if (!content || document.querySelector(".settings-done-row")) return;
+    const row = document.createElement("div");
+    row.className = "settings-done-row settings-rebuilt";
+    row.innerHTML = `<a class="button settings-done-button" href="/">Done</a>`;
+    content.prepend(row);
+  }
+
   function removeDuplicateSettingsCards() {
     const seen = new Set();
     const duplicateKeys = ["my plan", "daily targets", "redo setup", "advanced manual macro edit", "meal routine"];
@@ -83,10 +93,11 @@
     const title = document.querySelector("h1")?.textContent?.trim().toLowerCase();
     if (title !== "settings") return;
     injectStyles();
+    const content = document.querySelector(".content");
+    addDoneButton(content);
     removeDuplicateSettingsCards();
     if (document.querySelector(".settings-plan-card.settings-rebuilt") && document.querySelector(".settings-target-card.settings-rebuilt")) return;
 
-    const content = document.querySelector(".content");
     const form = macroForm();
     if (!content || !form) return;
 
@@ -114,7 +125,11 @@
     advanced.innerHTML = `<summary>Advanced manual macro edit</summary><p class="muted">Use this only if you already know the exact targets you want. Redo setup is the better option for most changes.</p>`;
     advanced.appendChild(form);
 
-    content.prepend(planCard, targetCard, resetCard, advanced);
+    const doneRow = document.querySelector(".settings-done-row");
+    doneRow?.insertAdjacentElement("afterend", planCard);
+    planCard.insertAdjacentElement("afterend", targetCard);
+    targetCard.insertAdjacentElement("afterend", resetCard);
+    resetCard.insertAdjacentElement("afterend", advanced);
     originalFormCard?.remove();
     originalMealCard?.remove();
     removeDuplicateSettingsCards();
