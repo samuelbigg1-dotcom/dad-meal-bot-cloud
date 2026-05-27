@@ -30,6 +30,20 @@
     return wrap;
   }
 
+  function removeDuplicateManualCard() {
+    const title = document.querySelector("h1")?.textContent?.trim().toLowerCase() || "";
+    if (!title.includes("foods")) return;
+
+    for (const card of document.querySelectorAll("section.card")) {
+      const heading = card.querySelector("h2")?.textContent?.trim().toLowerCase() || "";
+      const hasManualForm = Boolean(card.querySelector("form[action='/foods/manual']"));
+      const isFallbackDetails = card.closest("details.fallback-scans");
+      if (!isFallbackDetails && hasManualForm && (heading.includes("add food manually") || heading.includes("custom food"))) {
+        card.remove();
+      }
+    }
+  }
+
   function splitFoods() {
     const savedCard = document.querySelector(".saved-foods-card");
     if (!savedCard || savedCard.dataset.splitFoods === "true") return;
@@ -75,10 +89,12 @@
 
   function run() {
     injectStyles();
+    removeDuplicateManualCard();
     splitFoods();
   }
 
   document.addEventListener("DOMContentLoaded", run);
   window.addEventListener("pageshow", run);
   window.setTimeout(run, 150);
+  window.setTimeout(run, 500);
 })();
