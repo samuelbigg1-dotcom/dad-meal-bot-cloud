@@ -19,7 +19,14 @@
       .advanced-macro-settings summary::after { content:'Show'; float:right; color:var(--muted); font-size:13px; margin-top:4px; }
       .advanced-macro-settings[open] summary::after { content:'Hide'; }
       .reset-setup-card form, .account-card .action-row { margin-top:12px; }
-      .reset-setup-card .button.danger-soft { background:rgba(218,90,72,.12); border-color:rgba(218,90,72,.28); color:#ffb7aa; }
+      .reset-setup-card .button.danger-soft {
+        background:linear-gradient(135deg, #cf5f45, #e38b68) !important;
+        border-color:transparent !important;
+        color:#1b0f0b !important;
+        opacity:1 !important;
+        box-shadow:0 12px 28px rgba(207,95,69,.18);
+      }
+      .reset-setup-card .button.danger-soft:active { transform:translateY(1px) scale(.99); }
       .settings-hidden-original { display:none !important; }
       @media (max-width: 560px) { .settings-plan-grid, .settings-target-grid { grid-template-columns:1fr; } .settings-done-row { justify-content:stretch; } .settings-done-button { width:100%; } }
     `;
