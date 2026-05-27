@@ -17,6 +17,10 @@
       if (!card.closest('.today-dashboard-card') && !card.closest('.settings-target-grid') && !card.closest('.settings-plan-grid')) card.remove();
     });
 
+    // ui-compact.js can inject an older quick action panel after the new Today dashboard.
+    // Remove that duplicate panel so only the main feature buttons remain.
+    document.querySelectorAll('.content > .quick-actions-card').forEach((el) => el.remove());
+
     document.querySelectorAll('section.card').forEach((card) => {
       const heading = text(card.querySelector('h2'));
       if (heading.includes('meals today') || heading === 'weight') card.remove();
@@ -29,7 +33,8 @@
     style.id = 'home-cleanup-style';
     style.textContent = `
       body[data-today-dashboard='true'] .content > .macro-grid,
-      body[data-today-dashboard='true'] .content > .macro-card {
+      body[data-today-dashboard='true'] .content > .macro-card,
+      body[data-today-dashboard='true'] .content > .quick-actions-card {
         display: none !important;
       }
       body[data-today-dashboard='true'] .today-dashboard-card {
@@ -53,4 +58,5 @@
   setTimeout(run, 250);
   setTimeout(run, 700);
   setTimeout(run, 1400);
+  setTimeout(run, 2200);
 })();
