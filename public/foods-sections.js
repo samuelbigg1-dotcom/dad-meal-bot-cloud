@@ -30,6 +30,13 @@
     return wrap;
   }
 
+  function preserveAndHideManualCard(card) {
+    if (!card || card.dataset.manualCardPreserved === "true") return;
+    card.dataset.manualCardPreserved = "true";
+    card.classList.add("manual-food-hidden-shell");
+    card.setAttribute("aria-hidden", "true");
+  }
+
   function removeDuplicateManualCard() {
     const title = document.querySelector("h1")?.textContent?.trim().toLowerCase() || "";
     if (!title.includes("foods")) return;
@@ -44,7 +51,7 @@
       const isSavedFoods = card.classList.contains("saved-foods-card") || heading.includes("saved foods");
 
       if (!isFallbackDetails && !isPrimaryScan && !isSavedFoods && (hasManualForm || hasManualToggle) && (heading.includes("add food manually") || heading.includes("custom food") || body.includes("add food manually"))) {
-        card.remove();
+        preserveAndHideManualCard(card);
       }
     }
   }
@@ -81,6 +88,18 @@
     const style = document.createElement("style");
     style.id = "foods-sections-style";
     style.textContent = `
+      .manual-food-hidden-shell {
+        position: absolute !important;
+        left: -9999px !important;
+        top: auto !important;
+        width: 1px !important;
+        height: 1px !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
       .food-section-split { margin-top: 14px; }
       .food-section-split .section-head { margin-bottom: 8px; }
       .food-section-split .section-head h2 { font-size: 19px; }
