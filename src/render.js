@@ -47,7 +47,7 @@ export function layout({ title = "Macro Tracker", active = "", body = "", user =
   <script src="/public/app.js?v=editable-confirm-v6"></script>
   <script src="/public/ui-compact.js?v=${ASSET_VERSION}"></script>
   <script src="/public/today-polish.js?v=${ASSET_VERSION}"></script>
-  <script src="/public/today-dashboard.js?v=${ASSET_VERSION}"></script>
+  <script src="/public/today-dashboard.js?v=home-scan-restored-v2"></script>
   <script src="/public/today-dashboard-fix.js?v=${ASSET_VERSION}"></script>
   <script src="/public/home-cleanup.js?v=${ASSET_VERSION}"></script>
   <script src="/public/scan-overlay-guard.js?v=${ASSET_VERSION}"></script>
