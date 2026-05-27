@@ -6,18 +6,15 @@
     return title === 'today' || title === 'home';
   }
 
-  function removeBottomDuplicateCards() {
+  function removeOldServerOnlyCards() {
     if (!isHomePage()) return;
 
-    // The new Home design already has the calorie hero, Next Move, and four action cards.
-    // Do not show the old macro-card grid underneath it.
-    document.querySelectorAll('.today-compact-macros').forEach((el) => el.remove());
-
+    // Keep the new dashboard macro stats. Only remove leftover server-rendered old layout pieces.
     document.querySelectorAll('.content > .macro-grid').forEach((el) => el.remove());
     document.querySelectorAll('.content > .macro-card').forEach((el) => el.remove());
 
     document.querySelectorAll('.macro-card').forEach((card) => {
-      if (!card.closest('.settings-target-grid') && !card.closest('.settings-plan-grid')) card.remove();
+      if (!card.closest('.today-dashboard-card') && !card.closest('.settings-target-grid') && !card.closest('.settings-plan-grid')) card.remove();
     });
 
     document.querySelectorAll('section.card').forEach((card) => {
@@ -31,7 +28,6 @@
     const style = document.createElement('style');
     style.id = 'home-cleanup-style';
     style.textContent = `
-      body[data-today-dashboard='true'] .today-compact-macros,
       body[data-today-dashboard='true'] .content > .macro-grid,
       body[data-today-dashboard='true'] .content > .macro-card {
         display: none !important;
@@ -48,7 +44,7 @@
 
   function run() {
     injectStyles();
-    removeBottomDuplicateCards();
+    removeOldServerOnlyCards();
   }
 
   document.addEventListener('DOMContentLoaded', run);
