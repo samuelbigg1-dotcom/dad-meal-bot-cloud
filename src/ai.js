@@ -211,16 +211,18 @@ function validateNutritionLabelScan(food) {
   const evidence = String(food.labelEvidence || "").toLowerCase();
   const name = String(food.name || "").toLowerCase().trim();
   const genericName = !name || name === "scanned packaged food" || name === "packaged food";
+  const hasLabelWords = /nutrition|facts|serving|calories|protein|carb|fat|sugar|fiber|sodium|cholesterol/.test(evidence);
+  const hasCoreValues = Number(food.calories || 0) > 0 && (Number(food.carbs || 0) > 0 || Number(food.fat || 0) > 0 || Number(food.protein || 0) > 0);
 
-  if (!food.isNutritionLabel) {
+  if (!food.isNutritionLabel && !(hasLabelWords && hasCoreValues)) {
     throw new Error("That photo does not look like a readable Nutrition Facts label. Try a clearer label photo or scan the barcode.");
   }
 
-  if (confidence < 75) {
+  if (confidence < 55 && !(hasLabelWords && hasCoreValues)) {
     throw new Error("I could not confidently read a Nutrition Facts label from that photo. Try a closer, clearer label photo or scan the barcode.");
   }
 
-  if (!/nutrition|facts|serving|calories|protein|carb|fat|sugar|fiber/.test(evidence)) {
+  if (!hasLabelWords && !hasCoreValues) {
     throw new Error("That photo does not show enough Nutrition Facts label text. Try a clearer label photo or scan the barcode.");
   }
 
@@ -228,7 +230,7 @@ function validateNutritionLabelScan(food) {
     throw new Error("The scan did not find real nutrition values. Try a clearer Nutrition Facts label or scan the barcode.");
   }
 
-  if (genericName && confidence < 90) {
+  if (genericName && confidence < 60 && !hasCoreValues) {
     throw new Error("I could not identify this as a real packaged-food label. Try a clearer label photo or scan the barcode.");
   }
 }
@@ -261,20 +263,22 @@ export async function scanNutritionLabelWithAI(imageDataUrl) {
     messages: [
       {
         role: "system",
-        content: `You are a strict Nutrition Facts label verifier and reader.
+        content: `You are a Nutrition Facts label reader for packaged foods.
 
 First decide whether the image visibly contains a real Nutrition Facts label or equivalent packaged-food nutrition table.
-Accept only if you can clearly see label evidence such as Nutrition Facts, serving size, calories, protein, carbohydrates, fat, sugar, fiber, or a nutrition table.
+Accept the label if you can clearly read core nutrition rows such as serving size, calories, fat, carbohydrate, sugars, protein, sodium, or fiber, even if the package is wrinkled or angled.
 Reject walls, rooms, blank surfaces, random objects, food photos without a nutrition table, receipts, menus, and blurry photos.
 Never invent nutrition data from a non-label image.
-If the image is not clearly a Nutrition Facts label, return isNutritionLabel=false, labelConfidence=0, labelEvidence explaining what is missing, name='', baseQty=0, baseUnit='', servingText='', and all nutrition values as 0.
+If the image is not a nutrition label, return isNutritionLabel=false, labelConfidence=0, labelEvidence explaining what is missing, name='', baseQty=0, baseUnit='', servingText='', and all nutrition values as 0.
 If it is a real label, return nutrition per serving. If a nutrient is truly missing from a visible label, use 0.
 Do not invent a brand name. If the food name is not visible but the label is real, use 'Scanned packaged food'.
-Preserve the printed serving size text exactly in servingText, such as '3/4 cup' or '175 g'.
-For baseQty/baseUnit, convert common fractions exactly: 1/4 cup = 0.25 cup, 1/2 cup = 0.5 cup, 2/3 cup = 0.667 cup, 3/4 cup = 0.75 cup. Do not round 3/4 cup to 0.8 cup.`
+Use labelEvidence to quote or summarize visible proof, for example 'Nutrition Facts, Serving Size 2 1/4 cups, Calories 240, Fat 10g, Carbohydrate 36g'.
+Set labelConfidence based on readability of the visible table, not whether the product name is visible.
+Preserve the printed serving size text exactly in servingText, such as '3/4 cup', '2 1/4 cups (50 g)', or '175 g'.
+For baseQty/baseUnit, convert common fractions exactly: 1/4 cup = 0.25 cup, 1/2 cup = 0.5 cup, 2/3 cup = 0.667 cup, 3/4 cup = 0.75 cup, 2 1/4 cups = 2.25 cups. Do not round 3/4 cup to 0.8 cup.`
       },
       { role: "user", content: [
-        { type: "text", text: "Verify this image is a readable Nutrition Facts label. If it is, extract calories, protein, carbs, fat, sugar, and fiber per serving, plus the exact servingText. If it is not a visible nutrition label, reject it with isNutritionLabel=false and zero nutrition values." },
+        { type: "text", text: "Read this packaged-food Nutrition Facts label if visible. Extract calories, protein, carbs, fat, sugar, and fiber per serving, plus exact servingText. If no nutrition table is visible, reject it with isNutritionLabel=false and zero nutrition values." },
         { type: "image_url", image_url: { url: imageDataUrl } }
       ] }
     ],
