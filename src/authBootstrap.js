@@ -2,7 +2,8 @@ import express from "express";
 
 import { hasGoogleAuth, loggedInUserId, setupAuth } from "./auth.js";
 import { runWithUserId } from "./userContext.js";
-import { checkInDue, needsOnboarding, saveCheckIn, saveOnboarding, showCheckIn, showOnboarding } from "./onboarding.js";
+import { query } from "./db.js";
+import { checkInDue, ensureOnboardingSchema, needsOnboarding, saveCheckIn, saveOnboarding, showCheckIn, showOnboarding } from "./onboarding.js";
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
   // Google login replaces the old shared PIN gate. SESSION_SECRET still protects the signed session cookie.
@@ -24,7 +25,27 @@ function isPublicPath(req) {
 
 function isSetupPath(req) {
   const path = pathOf(req);
-  return path === "/onboarding" || path === "/check-in" || path === "/logout";
+  return path === "/onboarding" || path === "/check-in" || path === "/logout" || path === "/settings/reset-onboarding";
+}
+
+async function resetOnboardingForUser(userId) {
+  await ensureOnboardingSchema();
+  await query(`
+    UPDATE users SET
+      onboarding_complete = false,
+      goal_type = '',
+      goal_pace = '',
+      activity_level = '',
+      eating_pattern = '',
+      height_cm = NULL,
+      starting_weight_lb = NULL,
+      birth_age = NULL,
+      sex_for_formula = '',
+      onboarded_at = NULL,
+      last_checkin_at = NULL,
+      last_checkin_weight_lb = NULL
+    WHERE telegram_user_id = $1
+  `, [userId]);
 }
 
 function installAuthOnce(app) {
@@ -51,6 +72,14 @@ function installAuthOnce(app) {
   app.post("/check-in", express.urlencoded({ extended: true, limit: "64kb" }), (req, res, next) => {
     if (!req.user) return res.redirect("/login");
     return runWithUserId(loggedInUserId(req), () => saveCheckIn(req, res).catch(next));
+  });
+  app.post("/settings/reset-onboarding", express.urlencoded({ extended: true, limit: "64kb" }), (req, res, next) => {
+    if (!req.user) return res.redirect("/login");
+    const userId = loggedInUserId(req);
+    return runWithUserId(userId, async () => {
+      await resetOnboardingForUser(userId);
+      res.redirect("/onboarding");
+    }).catch(next);
   });
 
   originalUse.call(app, async (req, res, next) => {
