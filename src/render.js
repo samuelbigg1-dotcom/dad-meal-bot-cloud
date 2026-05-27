@@ -57,6 +57,7 @@ export function layout({ title = "Macro Tracker", active = "", body = "", user =
   <script src="/public/log-auto-meal.js?v=${ASSET_VERSION}"></script>
   <script src="/public/recommendations-polish.js?v=${ASSET_VERSION}"></script>
   <script src="/public/history-review.js?v=${ASSET_VERSION}"></script>
+  <script src="/public/progress-polish.js?v=progress-polish-v1"></script>
   <script src="/public/health-score.js?v=health-score-v1"></script>
   <script src="/public/assistant.js?v=${ASSET_VERSION}"></script>
 </body>
