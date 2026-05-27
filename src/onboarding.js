@@ -12,20 +12,20 @@ function page({ title, body }) {
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>${escapeHtml(title)}</title>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("dadMealTheme")||"dark";}catch(e){document.documentElement.dataset.theme="dark";}</script>
-  <link rel="stylesheet" href="/public/app.css?v=onboarding-card-v2" />
-  <link rel="stylesheet" href="/public/compact.css?v=onboarding-card-v2" />
+  <link rel="stylesheet" href="/public/app.css?v=onboarding-card-v3" />
+  <link rel="stylesheet" href="/public/compact.css?v=onboarding-card-v3" />
   <style>
     :root { color-scheme: dark; }
-    html { background:#07080a; }
+    html { background:#07080a; scroll-behavior:auto; }
     body { min-height: 100vh; background: radial-gradient(circle at top, rgba(216,123,85,.16), transparent 36%), #07080a; color:#f6f1ea; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .onboarding-shell { max-width: 760px; margin: 0 auto; min-height:100vh; padding: max(18px, env(safe-area-inset-top)) 16px 34px; display:flex; flex-direction:column; justify-content:center; }
+    .onboarding-shell { max-width: 760px; margin: 0 auto; min-height:100vh; padding: max(18px, env(safe-area-inset-top)) 16px calc(150px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; justify-content:flex-start; }
     .onboarding-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; }
     .eyebrow { color:#d98463; letter-spacing:.22em; text-transform:uppercase; font-weight:950; font-size:12px; }
     .onboarding-top h1 { margin:6px 0 0; font-size: clamp(28px, 8vw, 46px); line-height:.95; letter-spacing:-.06em; }
     .progress-dots { display:flex; gap:7px; padding-top:10px; }
     .progress-dots span { width:9px; height:9px; border-radius:999px; background:rgba(255,255,255,.14); transition:.2s ease; }
     .progress-dots span.on { background:#d98463; box-shadow:0 0 16px rgba(216,123,85,.45); }
-    .wizard-card { border:1px solid rgba(255,255,255,.08); border-radius:34px; padding:24px; background:linear-gradient(160deg, rgba(34,38,43,.96), rgba(20,22,26,.98)); box-shadow:0 28px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05); overflow:hidden; }
+    .wizard-card { border:1px solid rgba(255,255,255,.08); border-radius:34px; padding:24px; background:linear-gradient(160deg, rgba(34,38,43,.96), rgba(20,22,26,.98)); box-shadow:0 28px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05); overflow:visible; }
     .wizard-form { display:block; }
     .wizard-step { display:none; animation:stepIn .22s ease both; }
     .wizard-step.active { display:block; }
@@ -46,16 +46,16 @@ function page({ title, body }) {
     .wizard-grid .wide { grid-column:1 / -1; }
     .wizard-card .input, .wizard-card select { background:#101217 !important; border:1px solid rgba(255,255,255,.08) !important; color:#f6f1ea !important; border-radius:18px !important; min-height:54px; font-size:16px; }
     .field-label { color:rgba(246,241,234,.72); font-weight:950; margin-top:10px; display:block; }
-    .wizard-actions { display:grid; grid-template-columns:1fr 1.4fr; gap:10px; margin-top:18px; }
-    .wizard-actions .button { min-height:54px; border-radius:999px; justify-content:center; }
-    .wizard-actions .back { background:rgba(255,255,255,.04); color:#f6f1ea; border:1px solid rgba(255,255,255,.08); }
+    .wizard-actions { display:grid; grid-template-columns:1fr 1.4fr; gap:10px; margin-top:18px; position:sticky; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:5; padding-top:12px; background:linear-gradient(to bottom, rgba(20,22,26,0), rgba(20,22,26,.96) 34%); }
+    .wizard-actions .button { min-height:54px; border-radius:999px; justify-content:center; box-shadow:0 12px 34px rgba(0,0,0,.28); }
+    .wizard-actions .back { background:rgba(255,255,255,.06); color:#f6f1ea; border:1px solid rgba(255,255,255,.10); }
     .wizard-actions .next, .wizard-actions .finish, .wizard-card .primary { background:#d98463; color:#1a100c; border-color:transparent; font-weight:950; }
     .result-card { display:grid; gap:9px; margin:16px 0; }
     .result-row { display:flex; justify-content:space-between; gap:12px; border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:12px 14px; background:rgba(255,255,255,.035); font-weight:950; }
     .result-row span { color:rgba(246,241,234,.62); }
     .coach-note { border:1px solid rgba(216,123,85,.24); border-radius:22px; padding:14px; background:rgba(216,123,85,.10); color:rgba(246,241,234,.72); line-height:1.42; }
     .step-counter { text-align:center; color:rgba(246,241,234,.52); font-size:12px; font-weight:950; letter-spacing:.12em; text-transform:uppercase; margin-bottom:12px; }
-    @media (max-width: 620px) { .onboarding-shell { justify-content:flex-start; padding-top:28px; } .wizard-grid, .option-grid.two { grid-template-columns:1fr; } .wizard-card { padding:20px; border-radius:30px; } .wizard-actions { grid-template-columns:1fr; } .step-icon { width:82px; height:82px; } .step-icon span { width:60px; height:60px; } }
+    @media (max-width: 620px) { .onboarding-shell { padding-top:28px; } .wizard-grid, .option-grid.two { grid-template-columns:1fr; } .wizard-card { padding:20px; border-radius:30px; } .wizard-actions { grid-template-columns:1fr; } .step-icon { width:82px; height:82px; } .step-icon span { width:60px; height:60px; } }
   </style>
 </head>
 <body class="compact-ui onboarding-ui">
@@ -66,24 +66,21 @@ function page({ title, body }) {
       const dots = [...document.querySelectorAll('.progress-dots span')];
       if (!steps.length) return;
       let current = 0;
-      const show = (index) => {
+      const show = (index, shouldScroll = false) => {
         current = Math.max(0, Math.min(steps.length - 1, index));
         steps.forEach((step, i) => step.classList.toggle('active', i === current));
         dots.forEach((dot, i) => dot.classList.toggle('on', i <= current));
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (shouldScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
       };
       document.querySelectorAll('[data-next]').forEach((button) => button.addEventListener('click', () => {
         const inputs = [...steps[current].querySelectorAll('input, select')].filter((el) => !el.disabled && el.type !== 'radio');
         for (const input of inputs) { if (!input.checkValidity()) { input.reportValidity(); return; } }
         const radioNames = [...new Set([...steps[current].querySelectorAll('input[type="radio"]')].map((el) => el.name))];
         for (const name of radioNames) { if (!document.querySelector('input[name="' + name + '"]:checked')) return; }
-        show(current + 1);
+        show(current + 1, true);
       }));
-      document.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', () => show(current - 1)));
-      document.querySelectorAll('.option-card input[type="radio"]').forEach((input) => input.addEventListener('change', () => setTimeout(() => {
-        if (steps[current]?.querySelector('.option-grid') && !steps[current]?.querySelector('.wizard-grid')) show(current + 1);
-      }, 120)));
-      show(0);
+      document.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', () => show(current - 1, true)));
+      show(0, false);
     })();
   </script>
 </body>
