@@ -41,7 +41,7 @@
     panel.innerHTML = `
       <div class="section-head compact-head"><h2>Add custom food</h2><button class="button small" type="button" data-close-custom-food>Done</button></div>
       <p class="muted">Save a food you use often. Use numbers per serving.</p>
-      <form method="post" action="/foods/manual" class="stack custom-food-form">
+      <form method="post" action="/foods" class="stack custom-food-form">
         <input class="input" name="name" placeholder="Food name" required>
         <div class="grid two">
           <input class="input" name="baseQty" type="number" step="0.001" min="0" placeholder="Serving qty" value="1" required>
@@ -95,7 +95,7 @@
     for (const card of document.querySelectorAll("section.card")) {
       const body = text(card).toLowerCase();
       const heading = card.querySelector("h2")?.textContent?.trim().toLowerCase() || "";
-      const hasManualForm = Boolean(card.querySelector("form[action='/foods/manual']"));
+      const hasManualForm = Boolean(card.querySelector("form[action='/foods'], form[action='/foods/manual']"));
       const hasManualToggle = Boolean(card.querySelector("#toggleManualFoodForm, [data-toggle-manual-food]")) || body.includes("add food manually");
       const isFallbackDetails = card.closest("details.fallback-scans");
       const isPrimaryScan = card.classList.contains("foods-primary-scan");
