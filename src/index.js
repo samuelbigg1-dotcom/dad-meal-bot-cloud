@@ -53,6 +53,32 @@ function confidencePercent(item) { const n = Number(item.confidence_percent || i
 function mealTypeLabel(value) { return String(value || "meal").replace("_", " "); }
 function bodyArray(value) { return Array.isArray(value) ? value : value ? [value] : []; }
 
+async function lookupOpenFoodFactsProduct(barcode) {
+  const clean = String(barcode || "").replace(/\D/g, "");
+  if (!clean || ![8, 12, 13].includes(clean.length)) return null;
+  const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=product_name,brands,serving_size,nutriments,categories_tags`);
+  const data = await response.json();
+  if (!data || data.status !== 1 || !data.product) return null;
+  return data.product;
+}
+
+function foodFromOpenFoodFactsProduct(product, barcode) {
+  const nutriments = product.nutriments || {};
+  return {
+    name: product.product_name || product.brands || `Barcode ${barcode}`,
+    baseQty: 1,
+    baseUnit: product.serving_size || "serving",
+    calories: Number(nutriments["energy-kcal_serving"] ?? nutriments["energy-kcal_100g"] ?? 0),
+    protein: Number(nutriments["proteins_serving"] ?? nutriments["proteins_100g"] ?? 0),
+    carbs: Number(nutriments["carbohydrates_serving"] ?? nutriments["carbohydrates_100g"] ?? 0),
+    fat: Number(nutriments["fat_serving"] ?? nutriments["fat_100g"] ?? 0),
+    sugar: Number(nutriments["sugars_serving"] ?? nutriments["sugars_100g"] ?? 0),
+    fiber: Number(nutriments["fiber_serving"] ?? nutriments["fiber_100g"] ?? 0),
+    category: "packaged",
+    aliases: [barcode, product.brands].filter(Boolean).join(", ")
+  };
+}
+
 function currentMealSlot(slots) {
   const hour = new Date().getHours();
   if (hour < 11 && slots.includes("breakfast")) return "breakfast";
@@ -230,18 +256,16 @@ app.post("/foods/barcode", requireAuth, async (req, res) => {
   const barcode = String(req.body.barcode || "").replace(/\D/g, "");
   if (!barcode) return res.redirect("/foods");
   try {
-    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,serving_size,nutriments,categories_tags`);
-    const data = await response.json();
-    if (!data || data.status !== 1 || !data.product) return res.send(layout({ title: "Barcode not found", active: "foods", user, body: `<section class="card hero"><h2>Barcode not found</h2><p>I could not find that barcode. You can still add it manually from the nutrition label.</p><a class="button primary" href="/foods">Back to foods</a></section>` }));
-    const product = data.product; const nutriments = product.nutriments || {};
-    const food = { name: product.product_name || product.brands || `Barcode ${barcode}`, baseQty: 1, baseUnit: product.serving_size || "serving", calories: Number(nutriments["energy-kcal_serving"] ?? nutriments["energy-kcal_100g"] ?? 0), protein: Number(nutriments["proteins_serving"] ?? nutriments["proteins_100g"] ?? 0), carbs: Number(nutriments["carbohydrates_serving"] ?? nutriments["carbohydrates_100g"] ?? 0), fat: Number(nutriments["fat_serving"] ?? nutriments["fat_100g"] ?? 0), sugar: Number(nutriments["sugars_serving"] ?? nutriments["sugars_100g"] ?? 0), fiber: Number(nutriments["fiber_serving"] ?? nutriments["fiber_100g"] ?? 0), category: "packaged", aliases: [barcode, product.brands].filter(Boolean).join(", ") };
+    const product = await lookupOpenFoodFactsProduct(barcode);
+    if (!product) return res.send(layout({ title: "Barcode not found", active: "foods", user, body: `<section class="card hero"><h2>Barcode not found</h2><p>I could not find that barcode. You can still add it manually from the nutrition label.</p><a class="button primary" href="/foods">Back to foods</a></section>` }));
+    const food = foodFromOpenFoodFactsProduct(product, barcode);
     const encoded = b64JsonEncode(food);
     res.send(layout({ title: "Confirm packaged food", active: "foods", user, body: `<section class="card hero"><h2>Confirm packaged food</h2><p>Check this before saving. Barcode databases are useful, but not always perfect.</p></section><section class="card"><form id="confirm-package-form" method="post" action="/foods/confirm-package" class="stack"><input type="hidden" name="food" value="${encoded}" /><label class="field-label">Food name</label><input class="input wide" name="customName" value="${escapeHtml(food.name)}" placeholder="Enter food name" required /><p>${escapeHtml(food.baseQty)} ${escapeHtml(food.baseUnit)}</p><div class="pill-row"><span class="pill">${round0(food.calories)} cal</span><span class="pill">P ${round1(food.protein)}g</span><span class="pill">C ${round1(food.carbs)}g</span><span class="pill">F ${round1(food.fat)}g</span><span class="pill">Sug ${round1(food.sugar)}g</span><span class="pill">Fib ${round1(food.fiber)}g</span></div><div class="action-row"><button class="button primary" type="submit">Save to fridge</button><a class="button secondary" href="/foods">Cancel</a></div></form></section>` }));
   } catch (error) { console.error(error); res.send(layout({ title: "Barcode lookup failed", active: "foods", user, body: `<section class="card hero"><h2>Barcode lookup failed</h2><p>${escapeHtml(error.message)}</p><a class="button primary" href="/foods">Back to foods</a></section>` })); }
 });
 
 app.post("/foods/label-scan", requireAuth, async (req, res) => { const imageDataUrl = String(req.body.imageDataUrl || ""); if (!imageDataUrl.startsWith("data:image/")) return res.status(400).json({ error: "Missing image. Upload a photo of the Nutrition Facts label." }); try { const food = await scanNutritionLabelWithAI(imageDataUrl); res.json({ food: { name: food.name || "Scanned packaged food", baseQty: Number(food.baseQty || 1), baseUnit: food.baseUnit || "serving", calories: Number(food.calories || 0), protein: Number(food.protein || 0), carbs: Number(food.carbs || 0), fat: Number(food.fat || 0), sugar: Number(food.sugar || 0), fiber: Number(food.fiber || 0), category: "packaged", aliases: "" } }); } catch (error) { console.error(error); res.status(500).json({ error: error.message || "Could not scan nutrition label." }); } });
-app.post("/foods/barcode-image-scan", requireAuth, async (req, res) => { const imageDataUrl = String(req.body.imageDataUrl || ""); if (!imageDataUrl.startsWith("data:image/")) return res.status(400).json({ error: "Missing image. Upload a clear photo of the barcode." }); try { const barcode = await scanBarcodeImageWithAI(imageDataUrl); if (!barcode) return res.status(400).json({ error: "Could not read a barcode from that image." }); res.json({ barcode }); } catch (error) { console.error(error); res.status(500).json({ error: error.message || "Could not scan barcode image." }); } });
+app.post("/foods/barcode-image-scan", requireAuth, async (req, res) => { const imageDataUrl = String(req.body.imageDataUrl || ""); if (!imageDataUrl.startsWith("data:image/")) return res.status(400).json({ error: "Missing image. Upload a clear photo of the barcode." }); try { const barcode = await scanBarcodeImageWithAI(imageDataUrl); if (!barcode) return res.status(400).json({ error: "Could not read a barcode from that image." }); const product = await lookupOpenFoodFactsProduct(barcode); if (!product) return res.status(400).json({ error: "Barcode was not found in the product database. Falling back to Nutrition Facts label scan." }); res.json({ barcode }); } catch (error) { console.error(error); res.status(500).json({ error: error.message || "Could not scan barcode image." }); } });
 app.post("/foods/confirm-scanned-label", requireAuth, async (req, res) => { const user = await currentUser(); const food = b64JsonDecode(req.body.food); const encoded = b64JsonEncode(food); res.send(layout({ title: "Confirm scanned food", active: "foods", user, body: `<section class="card hero"><h2>Confirm scanned food</h2><p>Name it clearly before saving. Example: Milk 4L, Fairlife Chocolate Milk, Greek Yogurt, etc.</p></section><section class="card"><form id="confirm-package-form" method="post" action="/foods/confirm-package" class="stack"><input type="hidden" name="food" value="${encoded}" /><label class="field-label">Food name</label><input class="input wide" name="customName" value="${escapeHtml(food.name || "Scanned packaged food")}" placeholder="Example: Milk 4L" required /><p>${escapeHtml(food.baseQty || 1)} ${escapeHtml(food.baseUnit || "serving")}</p><div class="pill-row"><span class="pill">${round0(food.calories || 0)} cal</span><span class="pill">P ${round1(food.protein || 0)}g</span><span class="pill">C ${round1(food.carbs || 0)}g</span><span class="pill">F ${round1(food.fat || 0)}g</span><span class="pill">Sug ${round1(food.sugar || 0)}g</span><span class="pill">Fib ${round1(food.fiber || 0)}g</span></div><p class="muted">Scanned foods are saved as available, but not used in recommendations unless you turn that on later.</p><div class="action-row"><button class="button primary" type="submit">Save to fridge</button><a class="button secondary" href="/foods">Cancel</a></div></form></section>` })); });
 app.post("/foods/confirm-package", requireAuth, async (req, res) => { const food = b64JsonDecode(req.body.food); const customName = String(req.body.customName || "").trim(); await addFood({ name: customName || food.name || "Packaged food", aliases: String(food.aliases || "").split(",").map((x) => x.trim()).filter(Boolean), base_qty: Number(food.baseQty || 1), base_unit: food.baseUnit || "serving", calories: Number(food.calories || 0), protein_g: Number(food.protein || 0), carbs_g: Number(food.carbs || 0), fat_g: Number(food.fat || 0), sugar_g: Number(food.sugar || 0), fiber_g: Number(food.fiber || 0), category: food.category || "packaged", is_pantry: true, include_in_recommendations: false }); res.redirect("/foods"); });
 app.post("/foods/:id/toggle-pantry", requireAuth, async (req, res) => { const foods = await getFoods(); const food = foods.find((f) => Number(f.id) === Number(req.params.id)); if (food) await updateFoodFlags(food.id, { isPantry: !food.is_pantry }); res.redirect("/foods"); });
