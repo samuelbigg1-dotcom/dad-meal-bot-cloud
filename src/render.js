@@ -51,7 +51,7 @@ export function layout({ title = "Macro Tracker", active = "", body = "", user =
   <script src="/public/today-dashboard-fix.js?v=${ASSET_VERSION}"></script>
   <script src="/public/home-cleanup.js?v=${ASSET_VERSION}"></script>
   <script src="/public/scan-overlay-guard.js?v=${ASSET_VERSION}"></script>
-  <script src="/public/foods-sections.js?v=custom-food-route-fix-v1"></script>
+  <script src="/public/foods-sections.js?v=custom-food-route-fix-v2"></script>
   <script src="/public/serving-display-polish.js?v=${ASSET_VERSION}"></script>
   <script src="/public/settings-polish.js?v=${ASSET_VERSION}"></script>
   <script src="/public/log-auto-meal.js?v=${ASSET_VERSION}"></script>
